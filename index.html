@@ -1852,18 +1852,220 @@ let currentLang = 'en';
 let isOfflineMode = false;
 let currentSlotIndex = 1;
 let capturedEvidence = { slot1: null, slot2: null, slot3: null };
+
+// Dynamic Knowledge Base of Crop Diseases & 4-Level IPM Plans
+const DISEASE_KB = {
+  rice_blast: {
+    crop: 'Rice',
+    condition: 'Rice Leaf Blast (झुलसा रोग)',
+    latin: 'Magnaporthe oryzae · Fungal Pathogen',
+    confidenceTier: 'LIKELY',
+    confidenceScore: 88,
+    riskTier: 'HIGH',
+    riskScore: 78,
+    spreadText: 'Rapid Foliar Spread',
+    probabilities: [
+      { name: 'Rice Leaf Blast', prob: 88, color: '#C1493D' },
+      { name: 'Brown Spot', prob: 7, color: '#D98C2B' },
+      { name: 'Bacterial Blight', prob: 3, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 2, color: '#2D6A4F' }
+    ],
+    ipm: {
+      lvl1: [
+        'Inspect neighboring hills within 2-meter radius for diamond/spindle-shaped lesions.',
+        'Record lesion expansion daily for the next 48 to 72 hours.',
+        'Withhold top-dressing of nitrogenous fertilizers immediately during active sporulation.'
+      ],
+      lvl2: [
+        'Maintain 2–3 cm shallow water in paddy field; avoid prolonged stagnant deep flooding.',
+        'Prune and destroy heavily infected lower leaves to reduce micro-climate humidity.',
+        'Remove wild grass weeds (Echinochloa spp.) from field bunds which act as alternate hosts.'
+      ],
+      lvl3: [
+        'Foliar spray of <i>Pseudomonas fluorescens</i> (2.5 kg/ha or 10g/L) during cool morning hours.',
+        'Apply 5% Neem Seed Kernel Extract (NSKE) as bio-protectant barrier.',
+        'Enrich root zone with <i>Trichoderma harzianum</i> colonized farmyard manure.'
+      ],
+      lvl4: [
+        'If leaf blast severity exceeds 5% foliage threshold: Spray Tricyclazole 75% WP @ 0.6 g/L water.',
+        'Alternate with Isoprothiolane 40% EC @ 1.5 mL/L if secondary infection persists.',
+        'Mandatory protective gear (mask & gloves) required during application.'
+      ]
+    }
+  },
+  rice_brown_spot: {
+    crop: 'Rice',
+    condition: 'Rice Brown Spot (भूरा धब्बा)',
+    latin: 'Bipolaris oryzae · Fungal Pathogen',
+    confidenceTier: 'UNCERTAIN',
+    confidenceScore: 56,
+    riskTier: 'MEDIUM',
+    riskScore: 52,
+    spreadText: 'Moderate Seedling/Tillering',
+    probabilities: [
+      { name: 'Brown Spot', prob: 56, color: '#D98C2B' },
+      { name: 'Leaf Blast', prob: 32, color: '#C1493D' },
+      { name: 'Narrow Brown Spot', prob: 8, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 4, color: '#2D6A4F' }
+    ],
+    ipm: {
+      lvl1: [
+        'Check for small circular to oval dark brown lesions with yellow halo on upper leaves.',
+        'Verify if soil is nutrient deficient (especially Potassium or Zinc deficient).',
+        'Monitor whether spotting spreads to grains and glumes.'
+      ],
+      lvl2: [
+        'Apply balanced NPK fertilization with supplementary Potassium (MOP) and Zinc Sulphate.',
+        'Avoid soil water stress; maintain adequate soil moisture.',
+        'Practice hot water seed treatment (52-54°C for 10 mins) for next sowing cycle.'
+      ],
+      lvl3: [
+        'Spray <i>Trichoderma viride</i> formulation @ 5g/L water.',
+        'Apply Panchagavya (3% spray) or fermented Jeevamrutha to boost plant immunity.',
+        'Use Garlic-Chilli extract spray as natural bio-antifungal agent.'
+      ],
+      lvl4: [
+        'If spotting covers > 10% canopy: Spray Mancozeb 75% WP @ 2.0 g/L or Propiconazole 25% EC @ 1.0 mL/L.',
+        'Ensure spray reaches lower canopy foliage evenly.'
+      ]
+    }
+  },
+  maize_blight: {
+    crop: 'Maize',
+    condition: 'Northern Corn Leaf Blight',
+    latin: 'Exserohilum turcicum · Fungal Pathogen',
+    confidenceTier: 'LIKELY',
+    confidenceScore: 89,
+    riskTier: 'HIGH',
+    riskScore: 74,
+    spreadText: 'Foliar Cigar-shaped Lesions',
+    probabilities: [
+      { name: 'Northern Leaf Blight', prob: 89, color: '#C1493D' },
+      { name: 'Common Rust', prob: 6, color: '#D98C2B' },
+      { name: 'Gray Leaf Spot', prob: 3, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 2, color: '#2D6A4F' }
+    ],
+    ipm: {
+      lvl1: [
+        'Look for long elliptical grayish-green or tan lesions (cigar-shaped) on lower leaves.',
+        'Observe if symptoms advance upwards before silking stage.',
+        'Check weather forecast: cool temperatures (18-27°C) and heavy dew favor spread.'
+      ],
+      lvl2: [
+        'Deep plow infected crop residue after harvest to bury fungal spores.',
+        'Ensure optimal plant spacing (60 x 20 cm) for adequate air circulation.',
+        'Implement crop rotation with non-host crops (pulses, oilseeds).'
+      ],
+      lvl3: [
+        'Apply bio-fungicide <i>Trichoderma harzianum</i> @ 10g/L as foliar protective spray.',
+        'Use Neem oil 1500 ppm @ 3 mL/L water during early vegetative stage.'
+      ],
+      lvl4: [
+        'If disease reaches ear leaf prior to silking: Spray Azoxystrobin 18.2% + Difenoconazole 11.4% SC @ 1.0 mL/L.',
+        'Consult local KVK agronomist before spraying large acreage.'
+      ]
+    }
+  },
+  healthy_rice: {
+    crop: 'Rice',
+    condition: 'Healthy Crop (स्वस्थ फसल)',
+    latin: 'Optimal Chlorophyll & Tillering',
+    confidenceTier: 'LIKELY',
+    confidenceScore: 96,
+    riskTier: 'LOW',
+    riskScore: 10,
+    spreadText: 'No Pathogen Detected',
+    probabilities: [
+      { name: 'Healthy Foliage', prob: 96, color: '#2D6A4F' },
+      { name: 'Minor Nutrient Imbalance', prob: 3, color: '#D98C2B' },
+      { name: 'Pathogen Risk', prob: 1, color: '#C1493D' }
+    ],
+    ipm: {
+      lvl1: [
+        'Maintain routine weekly field monitoring and pest surveillance.',
+        'Record plant height, tiller count, and leaf color chart (LCC) index.',
+        'Check for presence of beneficial insects (spiders, dragonflies, ladybird beetles).'
+      ],
+      lvl2: [
+        'Follow Leaf Color Chart (LCC) based nitrogen split application.',
+        'Maintain clean irrigation channels and weed-free field borders.',
+        'Ensure alternate wetting and drying (AWD) irrigation practice.'
+      ],
+      lvl3: [
+        'Apply prophylactic bio-agents (Jeevamrutha, Pseudomonas) to sustain soil microbiome.',
+        'Install yellow and blue sticky traps for early insect monitoring.'
+      ],
+      lvl4: [
+        'No chemical application required. Preserve beneficial predator populations.'
+      ]
+    }
+  },
+  blurry_leaf: {
+    crop: 'Rice',
+    condition: 'Ambiguous Foliar Symptom (Blurry Frame)',
+    latin: 'Insufficient Sharpness for Definite Diagnosis',
+    confidenceTier: 'UNCERTAIN',
+    confidenceScore: 42,
+    riskTier: 'MEDIUM',
+    riskScore: 50,
+    spreadText: 'Evidence Inconclusive',
+    probabilities: [
+      { name: 'Leaf Blast (Uncertain)', prob: 42, color: '#D98C2B' },
+      { name: 'Brown Spot (Uncertain)', prob: 36, color: '#D98C2B' },
+      { name: 'Bacterial Blight', prob: 14, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 8, color: '#2D6A4F' }
+    ],
+    ipm: {
+      lvl1: [
+        'Retake photo with sharp focus and balanced lighting for high-confidence AI check.',
+        'Mark affected plants with bamboo pegs for physical verification.',
+        'Isolate observation patch to check if symptoms progress.'
+      ],
+      lvl2: [
+        'Maintain sanitary field practices while waiting for clear diagnosis.',
+        'Avoid excessive overhead sprinkler watering.'
+      ],
+      lvl3: [
+        'Spray safe bio-protective Neem extract (5%) as non-damaging preventive measure.'
+      ],
+      lvl4: [
+        'Do not apply chemical pesticides until clear diagnosis is established via expert escalation.'
+      ]
+    }
+  },
+  unknown_noncrop: {
+    crop: 'Unknown',
+    condition: 'Non-Crop / Out-of-Distribution Object',
+    latin: 'Feature vectors do not match crop health classes',
+    confidenceTier: 'UNKNOWN',
+    confidenceScore: 15,
+    riskTier: 'LOW',
+    riskScore: 0,
+    spreadText: 'Non-Agricultural Subject',
+    probabilities: [
+      { name: 'Non-Crop Object', prob: 85, color: '#6E4EA6' },
+      { name: 'Crop Disease Class', prob: 15, color: '#D98C2B' }
+    ],
+    ipm: {
+      lvl1: [
+        'Point camera directly at agricultural leaves or crops.',
+        'Ensure the suspected infected plant part fills at least 60% of the viewfinder.',
+        'Avoid photographing ground soil, hands, machinery, or distant background.'
+      ],
+      lvl2: ['Use the guided capture reticle to frame individual leaves.'],
+      lvl3: ['Consult local agricultural extension center if non-standard plant species.'],
+      lvl4: ['No agricultural treatment applicable.']
+    }
+  }
+};
+
 let activeScanData = {
-  crop: 'Rice',
+  ...DISEASE_KB.rice_blast,
   stage: 'Seedling',
   problem: 'Leaf Spots / Lesions',
   part: 'Leaf (पत्ता)',
   image: null,
-  condition: 'Rice Leaf Blast (झुलसा रोग)',
-  latin: 'Magnaporthe oryzae · Fungal Pathogen',
-  confidenceTier: 'LIKELY',
-  confidenceScore: 84,
-  riskTier: 'HIGH',
-  riskScore: 78,
+  sampleType: 'rice_blast',
   timestamp: new Date().toISOString(),
   syncStatus: 'Stored Offline'
 };
@@ -1927,15 +2129,24 @@ function goTo(id) {
   if (sc) sc.scrollTop = 0;
 
   // Sync bottom tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   if (id === 'scr-home') {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    const firstTab = document.querySelector('.tabbar .tab');
-    if (firstTab) firstTab.classList.add('active');
+    const t = document.querySelector('.tabbar .tab:nth-child(1)');
+    if (t) t.classList.add('active');
     loadRecentScans();
-  }
-
-  if (id === 'scr-map') {
+  } else if (id === 'scr-crop' || id === 'scr-guided' || id === 'scr-capture' || id === 'scr-quality' || id === 'scr-result' || id === 'scr-plan') {
+    const t = document.querySelector('.tabbar .tab:nth-child(2)');
+    if (t) t.classList.add('active');
+  } else if (id === 'scr-timeline') {
+    const t = document.querySelector('.tabbar .tab:nth-child(3)');
+    if (t) t.classList.add('active');
+  } else if (id === 'scr-map') {
+    const t = document.querySelector('.tabbar .tab:nth-child(4)');
+    if (t) t.classList.add('active');
     setTimeout(initLeafletMap, 150);
+  } else if (id === 'scr-expert-portal' || id === 'scr-expert') {
+    const t = document.querySelector('.tabbar .tab:nth-child(5)');
+    if (t) t.classList.add('active');
   }
 
   currentScreen = id;
@@ -1980,7 +2191,7 @@ function toast(msg) {
 }
 
 function openDrawerMenu() {
-  toast('Offline-First AI Decision Architecture · PWA v1.0.4');
+  toast('KRISHI DRISHTI · 100% Frontend Prototype (Zero backend needed)');
 }
 
 /* ==================== 3. OFFLINE INDEXEDDB MANAGER ==================== */
@@ -2021,33 +2232,39 @@ function seedInitialDemoData() {
       const demoScans = [
         {
           crop: 'Rice',
+          sampleType: 'rice_blast',
           condition: 'Rice Leaf Blast (झुलसा रोग)',
+          latin: 'Magnaporthe oryzae · Fungal Pathogen',
           confidenceTier: 'LIKELY',
-          confidenceScore: 84,
+          confidenceScore: 88,
           riskTier: 'HIGH',
           riskScore: 78,
           timestamp: new Date(Date.now() - 86400000).toISOString(),
           image: null,
-          syncStatus: 'Synced'
+          syncStatus: 'Stored Offline'
         },
         {
           crop: 'Maize',
-          condition: 'Northern Leaf Blight',
+          sampleType: 'maize_blight',
+          condition: 'Northern Corn Leaf Blight',
+          latin: 'Exserohilum turcicum · Fungal Pathogen',
           confidenceTier: 'LIKELY',
           confidenceScore: 89,
-          riskTier: 'MEDIUM',
-          riskScore: 54,
+          riskTier: 'HIGH',
+          riskScore: 74,
           timestamp: new Date(Date.now() - 172800000).toISOString(),
           image: null,
-          syncStatus: 'Synced'
+          syncStatus: 'Stored Offline'
         },
         {
           crop: 'Rice',
+          sampleType: 'rice_brown_spot',
           condition: 'Rice Brown Spot (भूरा धब्बा)',
+          latin: 'Bipolaris oryzae · Fungal Pathogen',
           confidenceTier: 'UNCERTAIN',
-          confidenceScore: 52,
+          confidenceScore: 56,
           riskTier: 'MEDIUM',
-          riskScore: 48,
+          riskScore: 52,
           timestamp: new Date(Date.now() - 259200000).toISOString(),
           image: null,
           syncStatus: 'Stored Offline'
@@ -2089,13 +2306,13 @@ function loadRecentScans() {
       const dotColor = isHigh ? 'var(--danger)' : (item.riskScore >= 40 ? 'var(--amber)' : 'var(--good)');
       const timeStr = new Date(item.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
       html += `
-        <div class="card row-tap" style="margin-bottom:8px;padding:12px;" onclick="goTo('scr-result')">
+        <div class="card row-tap" style="margin-bottom:8px;padding:12px;" onclick="loadScanFromHistory('${item.sampleType || 'rice_blast'}')">
           <div style="width:10px;height:10px;border-radius:50%;background:${dotColor};flex:0 0 auto;"></div>
           <div style="flex:1;">
             <b style="font-size:13px;display:block;">${item.crop} · ${item.condition}</b>
             <span style="font-size:11px;color:#788A7D;">${timeStr} · Score ${item.riskScore}/100 · ${item.syncStatus}</span>
           </div>
-          <span class="badge ${item.confidenceTier === 'LIKELY' ? 'badge-forest' : 'badge-amber'}">${item.confidenceTier}</span>
+          <span class="badge ${item.confidenceTier === 'LIKELY' ? 'badge-forest' : (item.confidenceTier === 'UNCERTAIN' ? 'badge-amber' : 'badge-purple')}">${item.confidenceTier}</span>
         </div>
       `;
     });
@@ -2109,7 +2326,7 @@ function loadRecentScans() {
         const dotColor = isHigh ? 'var(--danger)' : (item.riskScore >= 40 ? 'var(--amber)' : 'var(--good)');
         const timeStr = new Date(item.timestamp).toLocaleString();
         fullHtml += `
-          <div class="card" style="margin-bottom:10px;">
+          <div class="card row-tap" style="margin-bottom:10px;" onclick="loadScanFromHistory('${item.sampleType || 'rice_blast'}')">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
               <span class="badge badge-forest">${item.crop}</span>
               <span style="font-size:11px;color:#788A7D;">${item.syncStatus}</span>
@@ -2119,13 +2336,18 @@ function loadRecentScans() {
               <span>Confidence: ${item.confidenceScore}% (${item.confidenceTier})</span>
               <span style="color:${dotColor};font-weight:700;">Risk: ${item.riskScore}/100</span>
             </div>
-            <div style="font-size:10px;color:#9AA89E;margin-top:6px;">${timeStr}</div>
+            <div style="font-size:10px;color:#9AA89E;margin-top:6px;">${timeStr} · Tap to inspect</div>
           </div>
         `;
       });
       fullContainer.innerHTML = fullHtml;
     }
   };
+}
+
+function loadScanFromHistory(sampleKey) {
+  loadSamplePreset(sampleKey);
+  toast(`Loaded scan case: ${sampleKey.replace('_', ' ').toUpperCase()}`);
 }
 
 function updateSyncBannerCount() {
@@ -2167,7 +2389,7 @@ function triggerCloudSync() {
     toast('Cannot sync while in Offline Mode. Switch to Online.');
     return;
   }
-  toast('Syncing IndexedDB records with Cloudinary / MongoDB Atlas...');
+  toast('Simulating Cloud Sync (IndexedDB → Cloud Storage)...');
   setTimeout(() => {
     if (!db) return;
     const tx = db.transaction(['scans'], 'readwrite');
@@ -2175,14 +2397,14 @@ function triggerCloudSync() {
     const req = store.getAll();
     req.onsuccess = () => {
       req.result.forEach(item => {
-        item.syncStatus = 'Synced';
+        item.syncStatus = 'Synced (Cloud)';
         store.put(item);
       });
       toast('✓ All scan records synchronized to cloud successfully!');
       updateSyncBannerCount();
       loadRecentScans();
     };
-  }, 1200);
+  }, 900);
 }
 
 /* ==================== 4. STEP 1: GUIDED CROP SELECTION ==================== */
@@ -2232,7 +2454,6 @@ async function startCameraStream() {
     }
   } catch (err) {
     console.log('Camera getUserMedia note:', err.message);
-    // If permission not granted or running in sandbox, user can use Presets or File Upload
   }
 }
 
@@ -2255,9 +2476,8 @@ function captureCurrentFrame() {
   if (video.videoWidth > 0) {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    processCapturedImage(dataUrl);
+    processCapturedImage(dataUrl, 'rice_blast');
   } else {
-    // Default to realistic Rice Blast if camera is blocked/simulated
     loadSamplePreset('rice_blast');
   }
 }
@@ -2267,32 +2487,26 @@ function handleFileUpload(event) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = (e) => {
-    processCapturedImage(e.target.result);
+    processCapturedImage(e.target.result, 'rice_blast');
   };
   reader.readAsDataURL(file);
 }
 
 function loadSamplePreset(presetKey) {
   let sampleSvg = '';
-  let sampleType = 'rice_blast';
+  let sampleType = presetKey || 'rice_blast';
 
   if (presetKey === 'rice_blast') {
-    sampleType = 'rice_blast';
     sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%2338692F'/%3E%3Cellipse cx='300' cy='200' rx='160' ry='55' fill='%238F6A3D' stroke='%23C19A5B' stroke-width='6'/%3E%3Cellipse cx='300' cy='200' rx='90' ry='25' fill='%234F3218'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3ERice Leaf Blast Symptoms (Spindle lesion)%3C/text%3E%3C/svg%3E`;
   } else if (presetKey === 'rice_brown_spot') {
-    sampleType = 'rice_brown_spot';
     sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23427334'/%3E%3Ccircle cx='180' cy='150' r='30' fill='%2361371F' stroke='%23C1A142' stroke-width='6'/%3E%3Ccircle cx='380' cy='240' r='38' fill='%2361371F' stroke='%23C1A142' stroke-width='7'/%3E%3Ccircle cx='290' cy='110' r='20' fill='%2361371F'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3ERice Brown Spot (Helminthosporium)%3C/text%3E%3C/svg%3E`;
   } else if (presetKey === 'maize_blight') {
-    sampleType = 'maize_blight';
     sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23386E2A'/%3E%3Crect x='100' y='140' width='380' height='60' rx='25' fill='%23A3783D' stroke='%23382510' stroke-width='4'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3EMaize Northern Leaf Blight%3C/text%3E%3C/svg%3E`;
   } else if (presetKey === 'healthy_rice') {
-    sampleType = 'healthy_rice';
     sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%232E7833'/%3E%3Cpath d='M50 200 Q300 80 550 200' stroke='%235BC763' stroke-width='10' fill='none'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3EVigorous Healthy Foliage%3C/text%3E%3C/svg%3E`;
   } else if (presetKey === 'blurry_leaf') {
-    sampleType = 'blurry_leaf';
     sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Cfilter id='b2'%3E%3CfeGaussianBlur stdDeviation='14'/%3E%3C/filter%3E%3Crect width='600' height='400' fill='%235E824F' filter='url(%23b2)'/%3E%3Ccircle cx='300' cy='200' r='100' fill='%23A35C33' filter='url(%23b2)'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3EUnclear / Blurry Leaf Frame%3C/text%3E%3C/svg%3E`;
   } else {
-    sampleType = 'unknown_noncrop';
     sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23697278'/%3E%3Ccircle cx='300' cy='200' r='120' fill='%23A84242'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3ENon-Crop Unknown Object%3C/text%3E%3C/svg%3E`;
   }
 
@@ -2300,11 +2514,15 @@ function loadSamplePreset(presetKey) {
 }
 
 function processCapturedImage(dataUrl, sampleType = 'rice_blast') {
-  activeScanData.image = dataUrl;
-  activeScanData.sampleType = sampleType;
+  const kbEntry = DISEASE_KB[sampleType] || DISEASE_KB.rice_blast;
+  activeScanData = {
+    ...activeScanData,
+    ...kbEntry,
+    image: dataUrl,
+    sampleType: sampleType
+  };
   capturedEvidence[`slot${currentSlotIndex}`] = dataUrl;
 
-  // Mark slot as filled in guided scan screen
   const slotEl = document.getElementById(`slot-${currentSlotIndex}`);
   if (slotEl) {
     slotEl.classList.add('filled');
@@ -2315,7 +2533,6 @@ function processCapturedImage(dataUrl, sampleType = 'rice_blast') {
     `;
   }
 
-  // Go to Quality Gate Screen (Step 2)
   goTo('scr-quality');
   runImageQualityCheck(dataUrl, sampleType);
 }
@@ -2384,89 +2601,11 @@ function runImageQualityCheck(imgSrc, sampleType) {
 
 /* ==================== 7. STEP 3, 4, 5: OFFLINE AI & DECISION ENGINE ==================== */
 function runAIInference() {
-  toast('⚡ Executing on-device TensorFlow.js MobileNetV2...');
+  toast('⚡ Executing on-device TensorFlow.js inference...');
   goTo('scr-result');
 
-  const sampleType = activeScanData.sampleType || 'rice_blast';
-  let predictions = [];
-
-  if (sampleType === 'rice_blast') {
-    activeScanData.condition = 'Rice Leaf Blast (झुलसा रोग)';
-    activeScanData.latin = 'Magnaporthe oryzae · Fungal Pathogen';
-    activeScanData.confidenceTier = 'LIKELY';
-    activeScanData.confidenceScore = 84;
-    activeScanData.riskTier = 'HIGH';
-    activeScanData.riskScore = 78;
-    predictions = [
-      { name: 'Rice Leaf Blast', prob: 84, color: '#C1493D' },
-      { name: 'Brown Spot', prob: 10, color: '#D98C2B' },
-      { name: 'Bacterial Blight', prob: 4, color: '#6E4EA6' },
-      { name: 'Healthy', prob: 2, color: '#2D6A4F' }
-    ];
-  } else if (sampleType === 'rice_brown_spot') {
-    activeScanData.condition = 'Rice Brown Spot (भूरा धब्बा)';
-    activeScanData.latin = 'Bipolaris oryzae · Fungal Pathogen';
-    activeScanData.confidenceTier = 'UNCERTAIN';
-    activeScanData.confidenceScore = 54;
-    activeScanData.riskTier = 'MEDIUM';
-    activeScanData.riskScore = 52;
-    predictions = [
-      { name: 'Brown Spot', prob: 54, color: '#D98C2B' },
-      { name: 'Leaf Blast', prob: 36, color: '#C1493D' },
-      { name: 'Narrow Brown Spot', prob: 7, color: '#6E4EA6' },
-      { name: 'Healthy', prob: 3, color: '#2D6A4F' }
-    ];
-  } else if (sampleType === 'maize_blight') {
-    activeScanData.crop = 'Maize';
-    activeScanData.condition = 'Northern Corn Leaf Blight';
-    activeScanData.latin = 'Exserohilum turcicum · Fungal';
-    activeScanData.confidenceTier = 'LIKELY';
-    activeScanData.confidenceScore = 89;
-    activeScanData.riskTier = 'HIGH';
-    activeScanData.riskScore = 74;
-    predictions = [
-      { name: 'Northern Leaf Blight', prob: 89, color: '#C1493D' },
-      { name: 'Common Rust', prob: 6, color: '#D98C2B' },
-      { name: 'Gray Leaf Spot', prob: 3, color: '#6E4EA6' },
-      { name: 'Healthy', prob: 2, color: '#2D6A4F' }
-    ];
-  } else if (sampleType === 'healthy_rice') {
-    activeScanData.condition = 'Healthy Crop (स्वस्थ फसल)';
-    activeScanData.latin = 'Optimal nutrient & chlorophyll levels';
-    activeScanData.confidenceTier = 'LIKELY';
-    activeScanData.confidenceScore = 96;
-    activeScanData.riskTier = 'LOW';
-    activeScanData.riskScore = 12;
-    predictions = [
-      { name: 'Healthy Foliage', prob: 96, color: '#2D6A4F' },
-      { name: 'Nitrogen Deficiency', prob: 3, color: '#D98C2B' },
-      { name: 'Other Disease', prob: 1, color: '#C1493D' }
-    ];
-  } else if (sampleType === 'blurry_leaf') {
-    activeScanData.condition = 'Ambiguous Foliar Symptom';
-    activeScanData.latin = 'Low sharpness prevents confident classification';
-    activeScanData.confidenceTier = 'UNCERTAIN';
-    activeScanData.confidenceScore = 41;
-    activeScanData.riskTier = 'MEDIUM';
-    activeScanData.riskScore = 50;
-    predictions = [
-      { name: 'Leaf Blast (Uncertain)', prob: 41, color: '#D98C2B' },
-      { name: 'Brown Spot (Uncertain)', prob: 38, color: '#D98C2B' },
-      { name: 'Bacterial Blight', prob: 15, color: '#6E4EA6' },
-      { name: 'Healthy', prob: 6, color: '#2D6A4F' }
-    ];
-  } else {
-    activeScanData.condition = 'Unknown / Non-Crop Object';
-    activeScanData.latin = 'Out-of-distribution image data';
-    activeScanData.confidenceTier = 'UNKNOWN';
-    activeScanData.confidenceScore = 18;
-    activeScanData.riskTier = 'LOW';
-    activeScanData.riskScore = 0;
-    predictions = [
-      { name: 'Unknown / Non-Crop Class', prob: 82, color: '#6E4EA6' },
-      { name: 'Crop Disease Class', prob: 18, color: '#D98C2B' }
-    ];
-  }
+  const kbEntry = DISEASE_KB[activeScanData.sampleType] || DISEASE_KB.rice_blast;
+  activeScanData = { ...activeScanData, ...kbEntry };
 
   // Update UI Elements on Result Screen
   document.getElementById('res-crop-tag').textContent = `${activeScanData.crop.toUpperCase()} · DECISION OUTPUT`;
@@ -2514,11 +2653,12 @@ function runAIInference() {
   riskArc.style.strokeDashoffset = offset;
 
   document.getElementById('res-prob-val').textContent = `${activeScanData.confidenceScore}% AI Match`;
+  document.getElementById('res-spread-val').textContent = activeScanData.spreadText;
 
   // Render Probability Distribution Bars
   const barsContainer = document.getElementById('prob-bars-container');
   let barsHtml = '';
-  predictions.forEach(p => {
+  activeScanData.probabilities.forEach(p => {
     barsHtml += `
       <div class="prob-bar-row">
         <div class="prob-bar-head">
@@ -2533,11 +2673,27 @@ function runAIInference() {
   });
   barsContainer.innerHTML = barsHtml;
 
+  // Update Dynamic IPM Plans
+  renderDynamicIPMPlan(activeScanData.ipm);
+
   // Persist scan to IndexedDB
   saveScanToIndexedDB({
     ...activeScanData,
     timestamp: new Date().toISOString()
   });
+}
+
+function renderDynamicIPMPlan(ipmData) {
+  if (!ipmData) return;
+  const lvl1 = document.getElementById('ipm-lvl1-items');
+  const lvl2 = document.getElementById('ipm-lvl2-items');
+  const lvl3 = document.getElementById('ipm-lvl3-items');
+  const lvl4 = document.getElementById('ipm-lvl4-items');
+
+  if (lvl1) lvl1.innerHTML = ipmData.lvl1.map(i => `<li>${i}</li>`).join('');
+  if (lvl2) lvl2.innerHTML = ipmData.lvl2.map(i => `<li>${i}</li>`).join('');
+  if (lvl3) lvl3.innerHTML = ipmData.lvl3.map(i => `<li>${i}</li>`).join('');
+  if (lvl4) lvl4.innerHTML = ipmData.lvl4.map(i => `<li>${i}</li>`).join('');
 }
 
 function shareDiagnosis() {
@@ -2582,7 +2738,6 @@ function openExpertEscalation() {
 }
 
 function submitExpertCase() {
-  const notes = document.getElementById('farmer-notes-input').value;
   toast('🚀 Escalation dossier dispatched to ICAR/KVK Agronomist network');
   setTimeout(() => {
     goTo('scr-expert-portal');
@@ -2667,6 +2822,7 @@ window.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.log('Service Worker Note:', err));
   }
 });
+
 </script>
 </body>
 </html>
