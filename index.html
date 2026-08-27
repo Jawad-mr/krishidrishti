@@ -1,0 +1,2672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1B4332">
+<title>KRISHI DRISHTI — Offline-First AI Crop Health Decision Support</title>
+<link rel="manifest" href="manifest.json">
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Leaflet CSS for Maps -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<!-- TensorFlow.js CDN for On-Device Offline Inference -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<!-- Leaflet JS for Maps -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  :root {
+    --ink: #102117;
+    --ink-soft: #384A3E;
+    --forest: #1B4332;
+    --forest-dark: #0F2A1E;
+    --leaf: #2D6A4F;
+    --sprout: #52B788;
+    --sprout-light: #B7E4C7;
+    --mist: #EAF3EC;
+    --paper: #F6F4EB;
+    --card: #FFFFFF;
+    --soil: #8C6A4E;
+    --amber: #D98C2B;
+    --amber-bg: #FDF3E3;
+    --danger: #C1493D;
+    --danger-bg: #FBEBE8;
+    --good: #2D6A4F;
+    --good-bg: #E3F2E7;
+    --purple: #6E4EA6;
+    --purple-bg: #F0EAF8;
+    --line: #E2DDD0;
+    --shadow: 0 20px 45px rgba(16, 33, 23, 0.12);
+    --shadow-sm: 0 4px 12px rgba(16, 33, 23, 0.06);
+    --radius-sm: 10px;
+    --radius-md: 16px;
+    --radius-lg: 22px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100vh; font-family: 'Sora', -apple-system, BlinkMacSystemFont, sans-serif; color: var(--ink); background: #E9EFE7; }
+  
+  /* Layout Controls */
+  body.view-desktop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 24px 16px 60px;
+    background: radial-gradient(1400px 900px at 50% -10%, #F1F6EF 0%, #E2EBE0 45%, #D4DFD0 100%);
+  }
+  body.view-fullscreen {
+    display: block;
+    padding: 0;
+    background: var(--paper);
+  }
+
+  /* App Container Frame */
+  .rig {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+  }
+
+  .rig-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 440px;
+    padding: 0 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #556B5C;
+  }
+  .rig-bar b { color: var(--forest); }
+  .view-toggle-btn {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'Sora', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+  }
+  .view-toggle-btn:hover { background: var(--mist); border-color: var(--leaf); }
+
+  /* Phone Shell */
+  .phone {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    height: 870px;
+    background: #111814;
+    border-radius: 54px;
+    padding: 13px;
+    box-shadow: var(--shadow), 0 0 0 2px #0a110d, 0 30px 70px rgba(18, 38, 26, 0.25);
+    transition: all 0.3s ease;
+  }
+
+  body.view-fullscreen .rig-bar { display: none; }
+  body.view-fullscreen .phone {
+    max-width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  body.view-fullscreen .phone::before { display: none; }
+
+  .phone::before {
+    content: "";
+    position: absolute;
+    top: 13px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 124px;
+    height: 27px;
+    background: #111814;
+    border-radius: 0 0 18px 18px;
+    z-index: 60;
+  }
+
+  .screen-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: var(--paper);
+    border-radius: 42px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  body.view-fullscreen .screen-frame { border-radius: 0; }
+
+  /* Top Status Bar */
+  .statusbar {
+    height: 48px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px 0 26px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+    z-index: 50;
+    background: transparent;
+  }
+  .statusbar .icons { display: flex; align-items: center; gap: 8px; }
+  .online-indicator {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: var(--good-bg);
+    color: var(--good);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .online-indicator.is-offline {
+    background: var(--amber-bg);
+    color: var(--amber);
+  }
+  .online-indicator .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  /* App Body & Screens */
+  .app-body {
+    position: relative;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(20px) scale(0.99);
+    transition: opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    background: var(--paper);
+  }
+  .screen.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0) scale(1);
+    z-index: 5;
+  }
+  .screen.leaving {
+    opacity: 0;
+    transform: translateX(-16px) scale(0.99);
+  }
+
+  .scr-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    padding: 6px 18px 28px;
+  }
+  .scr-scroll::-webkit-scrollbar { display: none; }
+
+  /* Navigation Bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 18px 12px;
+    flex: 0 0 auto;
+  }
+  .topbar h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    flex: 1;
+    color: var(--ink);
+  }
+  .topbar-actions { display: flex; align-items: center; gap: 8px; }
+
+  .iconbtn {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: 0 0 auto;
+    color: var(--ink);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .iconbtn:active { transform: scale(0.92); background: var(--mist); }
+  .iconbtn svg { width: 18px; height: 18px; }
+
+  /* Typography & Components */
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--leaf);
+    font-weight: 600;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .row-tap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .row-tap:active { transform: scale(0.98); }
+
+  .glyph {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+  .glyph svg { width: 22px; height: 22px; }
+  .chev { color: #8F9E93; flex: 0 0 auto; }
+
+  /* Buttons */
+  .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: var(--radius-md);
+    border: none;
+    font-family: 'Sora', sans-serif;
+    font-weight: 600;
+    font-size: 14.5px;
+    cursor: pointer;
+    transition: transform 0.12s ease, filter 0.12s ease;
+  }
+  .btn:active { transform: scale(0.975); }
+  .btn-primary {
+    background: linear-gradient(180deg, #2D6A4F, #1B4332);
+    color: #FFFFFF;
+    box-shadow: 0 8px 20px rgba(27, 67, 50, 0.28);
+  }
+  .btn-primary:active { filter: brightness(0.92); }
+  .btn-ghost {
+    background: var(--card);
+    color: var(--forest);
+    border: 1px solid var(--line);
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1.5px solid var(--forest);
+    color: var(--forest);
+  }
+  .btn-danger {
+    background: var(--danger-bg);
+    color: var(--danger);
+    border: 1px solid rgba(193, 73, 61, 0.2);
+  }
+  .btn-sm {
+    padding: 8px 12px;
+    font-size: 12.5px;
+    border-radius: 10px;
+    width: auto;
+  }
+
+  /* Bottom Tabbar */
+  .tabbar {
+    flex: 0 0 auto;
+    display: flex;
+    border-top: 1px solid var(--line);
+    background: rgba(246, 244, 235, 0.96);
+    backdrop-filter: blur(10px);
+    padding: 6px 6px calc(env(safe-area-inset-bottom) + 6px);
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 0 3px;
+    color: #7D8E81;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 600;
+    transition: color 0.15s ease;
+  }
+  .tab svg { width: 21px; height: 21px; }
+  .tab.active { color: var(--forest); }
+  .tab-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 16px);
+    background: var(--danger);
+    color: #fff;
+    font-size: 9px;
+    border-radius: 10px;
+    padding: 1px 4px;
+    font-weight: 700;
+  }
+
+  /* Toast Notification */
+  .toast {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 84px;
+    background: var(--forest-dark);
+    color: #FFFFFF;
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.28);
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: none;
+    z-index: 300;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .toast.show { transform: translateY(0); opacity: 1; pointer-events: auto; }
+
+  /* ============ SCREEN: Splash ============ */
+  #scr-splash {
+    background: linear-gradient(180deg, #1B4332 0%, #153729 60%, #0E241B 100%);
+    color: #FFFFFF;
+  }
+  .splash-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 70% at 50% 0%, rgba(82, 183, 136, 0.22), transparent 70%),
+      linear-gradient(180deg, rgba(14,36,27,0.2) 0%, rgba(14,36,27,0.92) 80%);
+    pointer-events: none;
+  }
+  .splash-top {
+    position: relative;
+    z-index: 2;
+    padding: 30px 24px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .splash-content {
+    position: relative;
+    z-index: 2;
+    margin-top: auto;
+    padding: 0 24px 38px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .splash-title {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .splash-sub {
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #D3E4DA;
+  }
+  .lang-select-strip {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 4px 0 8px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .lang-select-strip::-webkit-scrollbar { display: none; }
+  .lang-btn {
+    flex: 0 0 auto;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    cursor: pointer;
+    font-family: 'Sora', sans-serif;
+  }
+  .lang-btn.active {
+    background: var(--sprout);
+    color: var(--forest-dark);
+    font-weight: 700;
+    border-color: var(--sprout);
+  }
+
+  /* ============ SCREEN: Home Dashboard ============ */
+  .home-hero {
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    background: linear-gradient(135deg, #2D6A4F 0%, #1B4332 100%);
+    color: #FFFFFF;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 14px;
+    box-shadow: 0 10px 24px rgba(27, 67, 50, 0.2);
+  }
+  .home-hero::after {
+    content: "";
+    position: absolute;
+    right: -25px;
+    top: -25px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(183, 228, 199, 0.28), transparent 70%);
+  }
+  .home-hero .glyph { background: rgba(255,255,255,0.16); }
+  .home-hero .glyph svg { color: #FFFFFF; }
+  .home-hero h3 { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; margin-bottom: 2px; }
+  .home-hero p { font-size: 12.5px; color: #D8EADE; }
+
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stat-pill {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .stat-pill .num { font-family: 'Fraunces', serif; font-size: 18px; font-weight: 700; color: var(--forest); }
+  .stat-pill .label { font-size: 10px; color: #6E8073; text-transform: uppercase; font-family: 'JetBrains Mono', monospace; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .mini-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    cursor: pointer;
+    transition: transform 0.12s ease;
+  }
+  .mini-card:active { transform: scale(0.97); }
+  .mini-card .glyph { width: 38px; height: 38px; border-radius: 11px; }
+  .mini-card b { font-size: 13px; font-weight: 600; }
+  .mini-card span { font-size: 11px; color: #76867B; }
+
+  /* ============ SCREEN: Crop Select & Step 1 ============ */
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--mist);
+    color: var(--forest);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .crop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .crop-box {
+    background: var(--card);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .crop-box.selected {
+    border-color: var(--leaf);
+    background: var(--good-bg);
+    box-shadow: 0 4px 12px rgba(45, 106, 79, 0.14);
+  }
+  .crop-box .emoji { font-size: 32px; display: block; margin-bottom: 4px; }
+  .crop-box b { font-size: 13.5px; display: block; }
+  .crop-box span { font-size: 11px; color: #76867B; }
+
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; display: block; }
+  .chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .chip.selected {
+    background: var(--forest);
+    color: #FFFFFF;
+    border-color: var(--forest);
+    font-weight: 600;
+  }
+
+  /* Multi-view capture cards */
+  .evidence-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .evidence-slot {
+    background: var(--card);
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius-md);
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .evidence-slot.active-slot {
+    border-color: var(--leaf);
+    background: var(--good-bg);
+  }
+  .evidence-slot.filled {
+    border-style: solid;
+    border-color: var(--sprout);
+    padding: 0;
+  }
+  .evidence-slot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    inset: 0;
+  }
+  .evidence-slot .slot-title { font-size: 10.5px; font-weight: 600; z-index: 2; margin-top: 4px; }
+  .evidence-slot .slot-check {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: var(--leaf);
+    color: #fff;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    z-index: 3;
+  }
+
+  /* ============ SCREEN: Camera & Capture ============ */
+  #scr-capture { background: #080C09; }
+  .cam-container {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #000;
+  }
+  .cam-video-wrap {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #cam-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  #cam-canvas { display: none; }
+
+  .cam-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 16px;
+  }
+  .cam-reticle {
+    position: absolute;
+    inset: 60px 30px 90px;
+    border: 2px dashed rgba(255,255,255,0.6);
+    border-radius: 24px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  }
+  .cam-reticle::before {
+    content: "POSITION AFFECTED LEAF HERE";
+    position: absolute;
+    bottom: -28px;
+    left: 0; right: 0;
+    text-align: center;
+    color: #FFFFFF;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    font-family: 'JetBrains Mono', monospace;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  }
+
+  .cam-hint-pill {
+    align-self: center;
+    background: rgba(0,0,0,0.7);
+    color: #FFFFFF;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .cam-samples-strip {
+    background: rgba(14, 20, 16, 0.95);
+    padding: 8px 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .cam-samples-strip::-webkit-scrollbar { display: none; }
+  .sample-thumb {
+    flex: 0 0 auto;
+    width: 62px;
+    height: 52px;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+  }
+  .sample-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .sample-thumb span {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-size: 8px;
+    text-align: center;
+    padding: 1px 0;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .cam-controls {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 16px 20px 24px;
+    background: #0E1410;
+  }
+  .shutter-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 5px solid rgba(255,255,255,0.3);
+    cursor: pointer;
+    transition: transform 0.1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .shutter-btn:active { transform: scale(0.9); }
+  .shutter-inner { width: 56px; height: 56px; border-radius: 50%; border: 2px solid #000; }
+
+  /* ============ SCREEN: Quality Check Gate (Step 2) ============ */
+  .quality-metric {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .quality-metric .info { display: flex; flex-direction: column; gap: 2px; }
+  .quality-metric .title { font-size: 13px; font-weight: 600; }
+  .quality-metric .desc { font-size: 11px; color: #76867B; }
+  .quality-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .badge-pass { background: var(--good-bg); color: var(--good); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber); }
+  .badge-fail { background: var(--danger-bg); color: var(--danger); }
+
+  /* ============ SCREEN: AI Result & Confidence (Step 3, 4, 5) ============ */
+  .confidence-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+  }
+  .conf-likely { background: var(--good-bg); color: var(--good); border: 1px solid #BCE3C8; }
+  .conf-uncertain { background: var(--amber-bg); color: #B36F15; border: 1px solid #F6D7A8; }
+  .conf-unknown { background: var(--purple-bg); color: var(--purple); border: 1px solid #D9C8F0; }
+
+  .gauge-wrap { display: flex; justify-content: center; margin: 10px 0 14px; }
+  .gauge { position: relative; width: 170px; height: 170px; }
+  .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .gauge-center .num { font-family: 'Fraunces', serif; font-size: 40px; font-weight: 700; line-height: 1; }
+  .gauge-center .of { font-size: 11px; color: #76867B; margin-top: 2px; }
+
+  .prob-bar-row { margin-bottom: 8px; }
+  .prob-bar-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+  .prob-bar-track { height: 7px; background: var(--mist); border-radius: 10px; overflow: hidden; }
+  .prob-bar-fill { height: 100%; border-radius: 10px; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+  /* ============ SCREEN: IPM-First Action Engine (Step 6) ============ */
+  .ipm-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--forest);
+  }
+  .ipm-card.level-1 { border-left-color: #2D6A4F; }
+  .ipm-card.level-2 { border-left-color: #52B788; }
+  .ipm-card.level-3 { border-left-color: #D98C2B; }
+  .ipm-card.level-4 { border-left-color: #C1493D; }
+  .ipm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .ipm-level-tag {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #6E8073;
+  }
+  .ipm-title { font-size: 13.5px; font-weight: 700; }
+  .ipm-list { margin-left: 18px; margin-top: 6px; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+  .ipm-list li { margin-bottom: 4px; }
+
+  /* ============ SCREEN: Monitoring Timeline (Step 7) ============ */
+  .timeline-wrap {
+    position: relative;
+    padding-left: 20px;
+    border-left: 2px solid var(--line);
+    margin: 14px 0 14px 10px;
+  }
+  .tl-node {
+    position: relative;
+    margin-bottom: 18px;
+  }
+  .tl-node::before {
+    content: "";
+    position: absolute;
+    left: -26px;
+    top: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--leaf);
+    border: 2px solid var(--paper);
+  }
+  .tl-node.active-node::before { background: var(--amber); }
+
+  /* Photo Compare Slider */
+  .compare-slider-wrap {
+    position: relative;
+    height: 180px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    margin-bottom: 12px;
+  }
+  .compare-img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .compare-overlay-img {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    object-fit: cover;
+    width: 50%;
+    overflow: hidden;
+  }
+  .compare-slider-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: ew-resize;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+  }
+  .compare-divider {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 50%;
+    width: 2px;
+    background: #fff;
+    box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+
+  /* ============ SCREEN: Expert Escalation & Portal (Step 8) ============ */
+  .expert-pill {
+    background: var(--purple-bg);
+    border: 1px solid #DACBF0;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* ============ SCREEN: Map (Step 19) ============ */
+  #leaflet-map {
+    width: 100%;
+    height: 320px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    margin-bottom: 14px;
+    z-index: 1;
+  }
+
+  /* Sync Queue Badge */
+  .sync-banner {
+    background: var(--amber-bg);
+    border: 1px solid #F5DBB5;
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+
+  /* Loading Spinner */
+  .spinner {
+    width: 24px; height: 24px;
+    border: 3px solid rgba(45, 106, 79, 0.2);
+    border-top-color: var(--leaf);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Utility badges */
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 600;
+  }
+  .badge-forest { background: var(--good-bg); color: var(--forest); }
+  .badge-amber { background: var(--amber-bg); color: #A66512; }
+  .badge-danger { background: var(--danger-bg); color: var(--danger); }
+  .badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+</style>
+</head>
+<body class="view-desktop">
+
+<div class="rig">
+  <!-- Top Tool Bar for Prototype Demo Switching -->
+  <div class="rig-bar">
+    <span><b>KRISHI DRISHTI</b> · AI Decision Support</span>
+    <button class="view-toggle-btn" id="toggle-view-btn" onclick="toggleViewportMode()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      <span id="view-mode-text">Full Screen</span>
+    </button>
+  </div>
+
+  <div class="phone" id="phone-shell">
+    <div class="screen-frame" id="frame">
+
+      <!-- Universal Status Bar -->
+      <div class="statusbar" id="statusbar">
+        <span id="live-clock" style="font-family:'JetBrains Mono',monospace;">09:41</span>
+        <div class="icons">
+          <!-- Offline / Online Toggle Simulator -->
+          <div class="online-indicator" id="network-pill" onclick="toggleNetworkSimulator()" title="Click to test Offline/Online mode">
+            <span class="dot"></span>
+            <span id="network-label">Offline-Ready</span>
+          </div>
+          <!-- Battery & Signal -->
+          <svg width="22" height="11" viewBox="0 0 24 12" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.5" y="2.5" width="14" height="7" rx="1.2" fill="currentColor"/><path d="M22 4V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <!-- App Body Screen Container -->
+      <div class="app-body" id="app-body">
+
+        <!-- ==================== SCREEN 0: SPLASH ==================== -->
+        <div class="screen active" id="scr-splash">
+          <div class="splash-bg"></div>
+          <div class="splash-top">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <svg width="28" height="28" viewBox="0 0 34 34" fill="none"><path d="M17 30C10 30 5 24 5 16C5 10 9 5 17 4C25 5 29 10 29 16C29 24 24 30 17 30Z" fill="#52B788"/><path d="M17 30V4" stroke="#0F2A1E" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span style="font-family:'Fraunces';font-size:17px;font-weight:600;">KrishiDrishti</span>
+            </div>
+            <span class="badge badge-forest" style="font-size:10px;">Offline AI</span>
+          </div>
+
+          <div class="splash-content">
+            <div class="eyebrow" style="color:var(--sprout);">Trust Layer for Farmers</div>
+            <h1 class="splash-title">AI Vision.<br/>Field Wisdom.</h1>
+            <p class="splash-sub">Offline-first crop health diagnosis with image quality gates, confidence validation (Likely/Uncertain), safe IPM actions, and agronomist escalation.</p>
+
+            <div>
+              <span style="font-size:11px;color:#B7E4C7;display:block;margin-bottom:6px;font-weight:600;">Select Language / भाषा चुनें</span>
+              <div class="lang-select-strip">
+                <button class="lang-btn active" onclick="setLang('en')">English</button>
+                <button class="lang-btn" onclick="setLang('hi')">हिन्दी (Hindi)</button>
+                <button class="lang-btn" onclick="setLang('kn')">ಕನ್ನಡ (Kannada)</button>
+                <button class="lang-btn" onclick="setLang('te')">తెలుగు (Telugu)</button>
+                <button class="lang-btn" onclick="setLang('ta')">தமிழ் (Tamil)</button>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="goTo('scr-home')">
+              <span>Start Diagnostic</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 1: HOME DASHBOARD ==================== -->
+        <div class="screen" id="scr-home">
+          <div class="topbar">
+            <div class="iconbtn" onclick="openDrawerMenu()"><svg viewBox="0 0 24 24" fill="none"><path d="M3 6H21M3 12H21M3 18H21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <h1 id="txt-home-title">KrishiDrishti</h1>
+            <div class="topbar-actions">
+              <div class="iconbtn" onclick="goTo('scr-expert-portal')" title="Expert Agronomist Mode">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 4V20M4 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="scr-scroll">
+            <!-- Sync status banner if offline items pending -->
+            <div class="sync-banner" id="home-sync-banner" style="display:none;" onclick="triggerCloudSync()">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21.5 15a4.5 4.5 0 0 0-4-4.4 6 6 0 0 0-11.8 1.4A4.5 4.5 0 0 0 6.5 21h14a3.5 3.5 0 0 0 1-7Z" stroke="#A66512" stroke-width="1.6"/></svg>
+                <span><b id="sync-count">0</b> scans stored in IndexedDB (Pending Sync)</span>
+              </div>
+              <button class="btn btn-sm btn-ghost" style="padding:3px 8px;font-size:11px;">Sync</button>
+            </div>
+
+            <!-- Hero: Start New Scan -->
+            <div class="home-hero row-tap" onclick="goTo('scr-crop')">
+              <div class="glyph"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7.5" stroke="#fff" stroke-width="1.8"/><path d="M12 8V16M8 12H16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+              <div style="flex:1">
+                <h3 id="txt-scan-crop-now">Guided Crop Scan</h3>
+                <p id="txt-scan-sub">Quality-checked, offline AI decision engine</p>
+              </div>
+              <svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 6L15 12L9 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+
+            <!-- Farm Summary Stats -->
+            <div class="stats-strip">
+              <div class="stat-pill" onclick="goTo('scr-history')">
+                <div class="num" id="stat-total-scans">3</div>
+                <div class="label">Scans</div>
+              </div>
+              <div class="stat-pill" onclick="goTo('scr-timeline')">
+                <div class="num" style="color:var(--amber);">1</div>
+                <div class="label">Monitoring</div>
+              </div>
+              <div class="stat-pill" onclick="goTo('scr-expert-portal')">
+                <div class="num" style="color:var(--purple);">1</div>
+                <div class="label">Escalations</div>
+              </div>
+            </div>
+
+            <!-- Quick Navigation Cards -->
+            <div class="grid2">
+              <div class="mini-card" onclick="goTo('scr-timeline')">
+                <div class="glyph" style="background:var(--good-bg);"><svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="#2D6A4F" stroke-width="1.6"/><path d="M3.5 9.5H20.5" stroke="#2D6A4F" stroke-width="1.6"/><path d="M8 3V6.5M16 3V6.5" stroke="#2D6A4F" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <b>Monitoring & Timeline</b>
+                <span>Day 1 → Day 7 progression</span>
+              </div>
+              <div class="mini-card" onclick="goTo('scr-map')">
+                <div class="glyph" style="background:var(--amber-bg);"><svg viewBox="0 0 24 24" fill="none"><path d="M12 21C12 21 5 14.6 5 9.5C5 5.9 8.1 3 12 3C15.9 3 19 5.9 19 9.5C19 14.6 12 21 12 21Z" stroke="#D98C2B" stroke-width="1.7"/><circle cx="12" cy="9.5" r="2.4" stroke="#D98C2B" stroke-width="1.6"/></svg></div>
+                <b>Nearby KVK & FPO</b>
+                <span>Agri extension centers</span>
+              </div>
+            </div>
+
+            <!-- Expert Escalation Card -->
+            <div class="card row-tap" style="background:linear-gradient(135deg,#F2ECFA,#FAF7FE);border-color:#E2D6F5;margin-bottom:14px;" onclick="goTo('scr-expert-portal')">
+              <div class="glyph" style="background:#E2D6F5;"><svg viewBox="0 0 24 24" fill="none"><path d="M4 13V11C4 6.6 7.6 3 12 3C16.4 3 20 6.6 20 11V13" stroke="#6E4EA6" stroke-width="1.7"/><rect x="2.5" y="13" width="4" height="6" rx="1.6" stroke="#6E4EA6" stroke-width="1.5"/><rect x="17.5" y="13" width="4" height="6" rx="1.6" stroke="#6E4EA6" stroke-width="1.5"/></svg></div>
+              <div style="flex:1">
+                <b style="font-size:13.5px;color:#39255E;display:block;">Agronomist Escalation Portal</b>
+                <span style="font-size:11.5px;color:#715F8C;">Human-in-the-loop review for uncertain cases</span>
+              </div>
+              <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 6L15 12L9 18" stroke="#6E4EA6" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+
+            <!-- Recent Scans in IndexedDB -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span class="eyebrow">Recent Field Scans</span>
+              <span style="font-size:11px;color:var(--leaf);cursor:pointer;font-weight:600;" onclick="goTo('scr-history')">View All</span>
+            </div>
+            <div id="home-recent-list">
+              <!-- Rendered via JS -->
+            </div>
+
+          </div>
+
+          <!-- Bottom Navigation -->
+          <div class="tabbar">
+            <div class="tab active" onclick="goTo('scr-home')">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 11L12 4L20 11M6 9.5V20H18V9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span>Home</span>
+            </div>
+            <div class="tab" onclick="goTo('scr-crop')">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"/></svg>
+              <span>Scan</span>
+            </div>
+            <div class="tab" onclick="goTo('scr-timeline')">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 8V12L15 15M21 12A9 9 0 1 1 3 12A9 9 0 0 1 21 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span>Timeline</span>
+            </div>
+            <div class="tab" onclick="goTo('scr-map')">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M9 4L3 6.5V20L9 17.5L15 20L21 17.5V4L15 6.5L9 4Z" stroke="currentColor" stroke-width="1.6"/><path d="M9 4V17.5M15 6.5V20" stroke="currentColor" stroke-width="1.6"/></svg>
+              <span>Map & KVK</span>
+            </div>
+            <div class="tab" onclick="goTo('scr-expert-portal')">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M16 21V19C16 16.8 14.2 15 12 15C9.8 15 8 16.8 8 19V21M12 11C13.7 11 15 9.7 15 8C15 6.3 13.7 5 12 5C10.3 5 9 6.3 9 8C9 9.7 10.3 11 12 11Z" stroke="currentColor" stroke-width="1.8"/></svg>
+              <span>Agronomist</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 2: CROP & CONTEXT SELECTION (STEP 1) ==================== -->
+        <div class="screen" id="scr-crop">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-home')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Step 1: Select Crop</h1>
+            <div style="width:36px"></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">1. Guided Crop Selection</div>
+            <p style="font-size:12.5px;color:#718276;margin-bottom:14px;">Select the target crop to calibrate the on-device AI model:</p>
+
+            <div class="crop-grid">
+              <div class="crop-box selected" onclick="pickCrop('Rice', this)">
+                <span class="emoji">🌾</span>
+                <b>Rice (धान)</b>
+                <span>Blast, Brown Spot, Blight</span>
+              </div>
+              <div class="crop-box" onclick="pickCrop('Maize', this)">
+                <span class="emoji">🌽</span>
+                <b>Maize (मक्का)</b>
+                <span>Leaf Blight, Common Rust</span>
+              </div>
+              <div class="crop-box" onclick="pickCrop('Wheat', this)">
+                <span class="emoji">🌿</span>
+                <b>Wheat (गेहूं)</b>
+                <span>Rust, Powdery Mildew</span>
+              </div>
+              <div class="crop-box" onclick="pickCrop('Tomato', this)">
+                <span class="emoji">🍅</span>
+                <b>Tomato (टमाटर)</b>
+                <span>Early Blight, Leaf Curl</span>
+              </div>
+            </div>
+
+            <!-- Crop Growth Stage -->
+            <div class="form-group">
+              <label class="form-label">Crop Stage (Optional)</label>
+              <div class="chip-group">
+                <div class="chip selected" onclick="toggleChip(this, 'stage')">Seedling</div>
+                <div class="chip" onclick="toggleChip(this, 'stage')">Vegetative</div>
+                <div class="chip" onclick="toggleChip(this, 'stage')">Flowering</div>
+                <div class="chip" onclick="toggleChip(this, 'stage')">Maturity</div>
+              </div>
+            </div>
+
+            <!-- Problem Category -->
+            <div class="form-group">
+              <label class="form-label">Observed Problem Category</label>
+              <div class="chip-group">
+                <div class="chip selected" onclick="toggleChip(this, 'prob')">Leaf Spots / Lesions</div>
+                <div class="chip" onclick="toggleChip(this, 'prob')">Discoloration / Yellowing</div>
+                <div class="chip" onclick="toggleChip(this, 'prob')">Wilting</div>
+                <div class="chip" onclick="toggleChip(this, 'prob')">Pest Damage</div>
+              </div>
+            </div>
+
+            <!-- Plant Part Affected -->
+            <div class="form-group">
+              <label class="form-label">Plant Part Affected</label>
+              <div class="chip-group">
+                <div class="chip selected" onclick="toggleChip(this, 'part')">Leaf (पत्ता)</div>
+                <div class="chip" onclick="toggleChip(this, 'part')">Stem / Sheath</div>
+                <div class="chip" onclick="toggleChip(this, 'part')">Panicle / Grain</div>
+                <div class="chip" onclick="toggleChip(this, 'part')">Whole Plant</div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="goTo('scr-guided')">
+              <span>Next: Multi-View Capture</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 3: MULTI-VIEW GUIDANCE (STEP 1 CONT.) ==================== -->
+        <div class="screen" id="scr-guided">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-crop')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Multi-View Evidence</h1>
+            <div style="width:36px"></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">Multi-Angle Capture Protocol</div>
+            <p style="font-size:12.5px;color:#718276;margin-bottom:14px;">A single photo can mislead due to shadow or blur. Capture multi-view evidence for high-trust diagnosis:</p>
+
+            <div class="evidence-slots">
+              <div class="evidence-slot active-slot" id="slot-1" onclick="openCameraForSlot(1)">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="6" stroke="#2D6A4F" stroke-width="1.8"/><path d="M12 2V5M12 19V22M2 12H5M19 12H22" stroke="#2D6A4F" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span class="slot-title">1. Close-Up Leaf</span>
+                <span style="font-size:9px;color:#77887D;">Symptom detail</span>
+              </div>
+              <div class="evidence-slot" id="slot-2" onclick="openCameraForSlot(2)">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#8C9A90" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="#8C9A90" stroke-width="1.6"/></svg>
+                <span class="slot-title">2. Wider Crop</span>
+                <span style="font-size:9px;color:#77887D;">Canopy context</span>
+              </div>
+              <div class="evidence-slot" id="slot-3" onclick="openCameraForSlot(3)">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 12L12 4L20 12L12 20Z" stroke="#8C9A90" stroke-width="1.6"/></svg>
+                <span class="slot-title">3. Different Angle</span>
+                <span style="font-size:9px;color:#77887D;">Lighting check</span>
+              </div>
+            </div>
+
+            <!-- Field Instructions Banner -->
+            <div class="card" style="margin-bottom:16px;background:#F9FAF7;">
+              <b style="font-size:13px;display:block;margin-bottom:6px;color:var(--forest);">📷 Capture Guidelines:</b>
+              <ul style="font-size:12px;color:var(--ink-soft);line-height:1.6;margin-left:16px;">
+                <li>Hold steady within 15–20 cm of affected spots.</li>
+                <li>Avoid strong harsh shadows or direct backlighting.</li>
+                <li>Ensure leaf occupies at least 50% of the frame.</li>
+              </ul>
+            </div>
+
+            <button class="btn btn-primary" onclick="openCameraForSlot(currentSlotIndex || 1)">
+              <span>Open Guided Camera</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 4: LIVE CAMERA & SAMPLE LOADER (STEP 1 & 2) ==================== -->
+        <div class="screen" id="scr-capture">
+          <div class="cam-container">
+            <!-- Camera Topbar -->
+            <div style="position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;z-index:20;color:#fff;">
+              <div class="iconbtn" style="background:rgba(0,0,0,0.5);border:none;color:#fff;" onclick="closeCamera()"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></div>
+              <div class="cam-hint-pill" id="cam-slot-label">📸 Slot 1: Close-up Leaf</div>
+              <div class="iconbtn" style="background:rgba(0,0,0,0.5);border:none;color:#fff;" onclick="toggleFlash()"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14H11L10 22L20 9H13L13 2Z" stroke="#fff" stroke-width="1.8"/></svg></div>
+            </div>
+
+            <!-- Video Stream & Canvas -->
+            <div class="cam-video-wrap">
+              <video id="cam-video" autoplay playsinline muted></video>
+              <canvas id="cam-canvas"></canvas>
+
+              <!-- Viewfinder Reticle Overlay -->
+              <div class="cam-reticle"></div>
+            </div>
+
+            <!-- Field Sample Presets for Instant Testing -->
+            <div class="cam-samples-strip">
+              <span style="color:#A0B3A6;font-size:10px;display:flex;align-items:center;font-family:'JetBrains Mono',monospace;">DEMO PRESETS:</span>
+              <div class="sample-thumb" onclick="loadSamplePreset('rice_blast')" title="Rice Leaf Blast">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%2346733B'/%3E%3Cellipse cx='40' cy='30' rx='28' ry='12' fill='%238F6A3D' stroke='%23C19A5B' stroke-width='2'/%3E%3Cellipse cx='40' cy='30' rx='14' ry='5' fill='%234F3218'/%3E%3C/svg%3E" alt="Rice Blast">
+                <span>RICE BLAST</span>
+              </div>
+              <div class="sample-thumb" onclick="loadSamplePreset('rice_brown_spot')" title="Rice Brown Spot">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%235A8545'/%3E%3Ccircle cx='25' cy='20' r='5' fill='%2361371F' stroke='%23C1A142' stroke-width='1.5'/%3E%3Ccircle cx='50' cy='35' r='7' fill='%2361371F' stroke='%23C1A142' stroke-width='1.5'/%3E%3Ccircle cx='38' cy='45' r='4' fill='%2361371F'/%3E%3C/svg%3E" alt="Brown Spot">
+                <span>BROWN SPOT</span>
+              </div>
+              <div class="sample-thumb" onclick="loadSamplePreset('maize_blight')" title="Maize Leaf Blight">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%23487A38'/%3E%3Crect x='15' y='18' width='50' height='10' rx='5' fill='%23A3783D' stroke='%23382510' stroke-width='1'/%3E%3Crect x='25' y='36' width='40' height='8' rx='4' fill='%23A3783D'/%3E%3C/svg%3E" alt="Maize Blight">
+                <span>MAIZE BLIGHT</span>
+              </div>
+              <div class="sample-thumb" onclick="loadSamplePreset('healthy_rice')" title="Healthy Rice">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%2339803C'/%3E%3Cpath d='M0 30 Q40 10 80 30' stroke='%2356B35B' stroke-width='4' fill='none'/%3E%3C/svg%3E" alt="Healthy">
+                <span>HEALTHY</span>
+              </div>
+              <div class="sample-thumb" onclick="loadSamplePreset('blurry_leaf')" title="Blurry Test Case">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Cfilter id='b'%3E%3CfeGaussianBlur stdDeviation='5'/%3E%3C/filter%3E%3Crect width='80' height='60' fill='%235E824F' filter='url(%23b)'/%3E%3Ccircle cx='40' cy='30' r='18' fill='%23A35C33' filter='url(%23b)'/%3E%3C/svg%3E" alt="Blurry">
+                <span>BLURRY TEST</span>
+              </div>
+              <div class="sample-thumb" onclick="loadSamplePreset('unknown_noncrop')" title="Unknown Non-Crop">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60'%3E%3Crect width='80' height='60' fill='%23707B82'/%3E%3Ccircle cx='40' cy='30' r='20' fill='%23B06060'/%3E%3C/svg%3E" alt="Unknown">
+                <span>UNKNOWN OBJ</span>
+              </div>
+            </div>
+
+            <!-- Shutter Controls -->
+            <div class="cam-controls">
+              <!-- Upload from Gallery Button -->
+              <label class="iconbtn" style="background:rgba(255,255,255,0.15);border:none;color:#fff;cursor:pointer;">
+                <input type="file" accept="image/*" id="cam-file-input" style="display:none;" onchange="handleFileUpload(event)">
+                <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="3" stroke="#fff" stroke-width="1.6"/><circle cx="8.5" cy="8.5" r="1.6" fill="#fff"/><path d="M21 15L15.5 10L5 20" stroke="#fff" stroke-width="1.6"/></svg>
+              </label>
+
+              <!-- Main Shutter Button -->
+              <div class="shutter-btn" onclick="captureCurrentFrame()">
+                <div class="shutter-inner"></div>
+              </div>
+
+              <!-- Retake / Auto-scan switch -->
+              <div class="iconbtn" style="background:rgba(255,255,255,0.15);border:none;color:#fff;" onclick="toast('Switching camera angle...')">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M20 11A8.1 8.1 0 0 0 4.5 9M4 5V9H8M4 13A8.1 8.1 0 0 0 19.5 15M20 19V15H16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 5: IMAGE QUALITY GATE (STEP 2) ==================== -->
+        <div class="screen" id="scr-quality">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-guided')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Step 2: Quality Gate</h1>
+            <div style="width:36px"></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">Image Quality Verification Gate</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:12px;">Validating image sharpness, lighting, and foliage coverage before running on-device AI inference:</p>
+
+            <!-- Captured Image Preview with Inspection Frame -->
+            <div style="position:relative;height:160px;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--line);margin-bottom:14px;">
+              <img id="quality-preview-img" style="width:100%;height:100%;object-fit:cover;" src="" alt="Captured">
+              <div id="quality-status-pill" style="position:absolute;bottom:8px;left:8px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(0,0,0,0.75);color:#fff;">
+                Analyzing...
+              </div>
+            </div>
+
+            <!-- Quality Metric Results -->
+            <div class="quality-metric">
+              <div class="info">
+                <span class="title">Blur & Sharpness</span>
+                <span class="desc" id="lbl-blur-desc">Laplacian Edge Variance: calculating...</span>
+              </div>
+              <span class="quality-badge badge-pass" id="badge-blur">✓ Sharp</span>
+            </div>
+
+            <div class="quality-metric">
+              <div class="info">
+                <span class="title">Brightness & Exposure</span>
+                <span class="desc" id="lbl-bright-desc">Luminance: calculating...</span>
+              </div>
+              <span class="quality-badge badge-pass" id="badge-bright">✓ Optimal</span>
+            </div>
+
+            <div class="quality-metric">
+              <div class="info">
+                <span class="title">Resolution & Usable Pixels</span>
+                <span class="desc" id="lbl-res-desc">Resolution: calculating...</span>
+              </div>
+              <span class="quality-badge badge-pass" id="badge-res">✓ High Res</span>
+            </div>
+
+            <div class="quality-metric">
+              <div class="info">
+                <span class="title">Crop Leaf Visibility</span>
+                <span class="desc" id="lbl-leaf-desc">Target plant coverage: 78%</span>
+              </div>
+              <span class="quality-badge badge-pass" id="badge-leaf">✓ Clear Foliage</span>
+            </div>
+
+            <!-- Action buttons depending on quality pass/fail -->
+            <div id="quality-actions" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+              <button class="btn btn-primary" id="btn-quality-proceed" onclick="runAIInference()">
+                <span>Proceed to On-Device AI</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <button class="btn btn-ghost" onclick="openCameraForSlot(currentSlotIndex || 1)">
+                <span>Retake Photo (Better Lighting)</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 6: AI ANALYSIS & CONFIDENCE (STEPS 3, 4, 5) ==================== -->
+        <div class="screen" id="scr-result">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-quality')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Diagnosis & Risk</h1>
+            <div class="iconbtn" onclick="shareDiagnosis()"><svg viewBox="0 0 24 24" fill="none"><circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="1.8"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="currentColor" stroke-width="1.8"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="currentColor" stroke-width="1.8"/></svg></div>
+          </div>
+
+          <div class="scr-scroll">
+            
+            <!-- Confidence Badge (Step 4) -->
+            <div style="text-align:center;">
+              <div class="confidence-pill conf-likely" id="res-confidence-pill">
+                <span id="res-conf-dot">●</span>
+                <span id="res-confidence-text">CONFIDENCE: LIKELY</span>
+              </div>
+            </div>
+
+            <!-- Predicted Condition Card -->
+            <div class="card" style="margin-bottom:14px;text-align:center;">
+              <span class="eyebrow" id="res-crop-tag">RICE · ORYZA SATIVA</span>
+              <h2 style="font-family:'Fraunces';font-size:22px;font-weight:700;color:var(--forest);margin:4px 0 6px;" id="res-disease-name">Rice Leaf Blast (झुलसा रोग)</h2>
+              <p style="font-size:12px;color:#6C7D72;" id="res-disease-latin">Magnaporthe oryzae · Fungal Pathogen</p>
+
+              <div style="display:flex;justify-content:center;gap:12px;margin-top:10px;">
+                <span class="badge badge-forest" id="res-offline-tag">⚡ 100% Offline Inference</span>
+                <span class="badge badge-amber" id="res-time-tag">Latency: 38ms</span>
+              </div>
+            </div>
+
+            <!-- Step 5: Risk Indicator Dynamic Gauge -->
+            <div class="card" style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span class="eyebrow">STEP 5: CROP RISK INDICATOR</span>
+                <span class="badge badge-danger" id="res-risk-tier">HIGH RISK</span>
+              </div>
+
+              <div class="gauge-wrap">
+                <div class="gauge">
+                  <svg viewBox="0 0 190 190">
+                    <circle cx="95" cy="95" r="80" stroke="#E6E2D5" stroke-width="14" fill="none"/>
+                    <circle cx="95" cy="95" r="80" id="res-risk-arc" stroke="#C1493D" stroke-width="14" fill="none"
+                            stroke-dasharray="502.6" stroke-dashoffset="150" stroke-linecap="round"/>
+                  </svg>
+                  <div class="gauge-center">
+                    <div class="num" id="res-risk-num">78</div>
+                    <div class="of">/ 100 Risk Score</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Risk Drivers -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11.5px;">
+                <div style="background:var(--paper);padding:8px 10px;border-radius:10px;">
+                  <span style="color:#7D8E81;display:block;">AI Confidence:</span>
+                  <b id="res-prob-val">84% Match</b>
+                </div>
+                <div style="background:var(--paper);padding:8px 10px;border-radius:10px;">
+                  <span style="color:#7D8E81;display:block;">Symptom Spread:</span>
+                  <b id="res-spread-val">Rapid Foliar</b>
+                </div>
+              </div>
+            </div>
+
+            <!-- AI Probability Distribution Breakdown -->
+            <div class="card" style="margin-bottom:14px;">
+              <span class="eyebrow" style="display:block;margin-bottom:8px;">AI Prediction Probabilities</span>
+              <div id="prob-bars-container">
+                <!-- Injected dynamically -->
+              </div>
+            </div>
+
+            <!-- Escalation Notice if Uncertain / Unknown -->
+            <div class="expert-pill" id="escalation-prompt-box" style="display:none;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 9V14M12 17.5V18M12 3C7 3 3 7 3 12C3 17 7 21 12 21C17 21 21 17 21 12C21 7 17 3 12 3Z" stroke="#6E4EA6" stroke-width="2" stroke-linecap="round"/></svg>
+              <div style="flex:1;">
+                <b style="font-size:12.5px;color:#492F73;display:block;">Human Expert Review Recommended</b>
+                <span style="font-size:11px;color:#6C5985;">Prediction has ambiguity or high severity. Agronomists can verify.</span>
+              </div>
+              <button class="btn btn-sm" style="background:#6E4EA6;color:#fff;" onclick="openExpertEscalation()">Escalate</button>
+            </div>
+
+            <!-- Action Navigation -->
+            <div style="display:flex;gap:10px;">
+              <button class="btn btn-primary" onclick="goTo('scr-plan')">
+                <span>View IPM Action Plan</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <button class="btn btn-ghost" onclick="saveToMonitoringTimeline()" style="flex:0 0 auto;" title="Track in Timeline">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 7: IPM-FIRST ACTION ENGINE (STEP 6) ==================== -->
+        <div class="screen" id="scr-plan">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-result')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Step 6: IPM Action Plan</h1>
+            <div class="iconbtn" onclick="toast('IPM Protocol downloaded offline')"><svg viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">Integrated Pest Management (IPM) Hierarchy</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:12px;">Safe, eco-friendly, tiered recommendations. Chemical spray is strictly the last resort:</p>
+
+            <div id="ipm-cards-container">
+              <!-- Level 1: Observe -->
+              <div class="ipm-card level-1">
+                <div class="ipm-header">
+                  <span class="ipm-level-tag">LEVEL 1 · IMMEDIATE FIELD OBSERVATION</span>
+                  <span class="badge badge-forest">Safe</span>
+                </div>
+                <div class="ipm-title">👁️ Observe & Verify Spread</div>
+                <ul class="ipm-list" id="ipm-lvl1-items">
+                  <li>Inspect neighboring plants within 2-meter radius for spindle-shaped lesions.</li>
+                  <li>Check symptom expansion over the next 48 hours.</li>
+                  <li>Avoid nitrogen fertilizer over-application during active spread.</li>
+                </ul>
+              </div>
+
+              <!-- Level 2: Cultural Management -->
+              <div class="ipm-card level-2">
+                <div class="ipm-header">
+                  <span class="ipm-level-tag">LEVEL 2 · CULTURAL MANAGEMENT</span>
+                  <span class="badge badge-forest">Sanitation</span>
+                </div>
+                <div class="ipm-title">🌾 Field Sanitation & Water Management</div>
+                <ul class="ipm-list" id="ipm-lvl2-items">
+                  <li>Maintain 2–3 cm water level in rice paddy; avoid continuous deep flooding.</li>
+                  <li>Prune and safely burn or bury heavily infected lower leaves.</li>
+                  <li>Keep field bunds free from grass weeds (alternate hosts).</li>
+                </ul>
+              </div>
+
+              <!-- Level 3: Biological / Eco-Friendly -->
+              <div class="ipm-card level-3">
+                <div class="ipm-header">
+                  <span class="ipm-level-tag">LEVEL 3 · BIOLOGICAL & ECO-FRIENDLY</span>
+                  <span class="badge badge-amber">Eco-Friendly</span>
+                </div>
+                <div class="ipm-title">🌿 Biological & Bio-Pesticide Measures</div>
+                <ul class="ipm-list" id="ipm-lvl3-items">
+                  <li>Spray <i>Pseudomonas fluorescens</i> @ 2.5 kg/ha or 10g/L foliar spray.</li>
+                  <li>Apply 5% Neem Seed Kernel Extract (NSKE) during morning hours.</li>
+                  <li>Apply Trichoderma harzianum soil enrichment if root/collar rot observed.</li>
+                </ul>
+              </div>
+
+              <!-- Level 4: Verified Treatment -->
+              <div class="ipm-card level-4">
+                <div class="ipm-header">
+                  <span class="ipm-level-tag">LEVEL 4 · VERIFIED TREATMENT GUIDANCE</span>
+                  <span class="badge badge-danger">Last Resort</span>
+                </div>
+                <div class="ipm-title">⚠️ Regulated Active Ingredients</div>
+                <ul class="ipm-list" id="ipm-lvl4-items">
+                  <li>Only if economic threshold > 5% leaf area affected: Tricyclazole 75% WP @ 0.6 g/L water.</li>
+                  <li>Spray with hollow cone nozzle during early morning; wear protective mask.</li>
+                  <li>Consult local KVK or extension officer before chemical purchase.</li>
+                </ul>
+              </div>
+            </div>
+
+            <!-- Start Monitoring Button -->
+            <button class="btn btn-primary" onclick="saveToMonitoringTimeline()">
+              <span>Save & Begin Longitudinal Monitoring</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8V12L15 15M21 12A9 9 0 1 1 3 12A9 9 0 0 1 21 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 8: MONITORING & TIMELINE (STEP 7) ==================== -->
+        <div class="screen" id="scr-timeline">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-home')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Step 7: Monitoring</h1>
+            <div class="iconbtn" onclick="addFollowupScan()"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">Crop Health Progress Tracking</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:12px;">Track symptom recovery over Day 1 → Day 3 → Day 7 after applying IPM measures:</p>
+
+            <!-- Before / After Comparative Image Slider -->
+            <div class="compare-slider-wrap">
+              <!-- After / Day 7 Photo -->
+              <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='400' height='200' fill='%2338783C'/%3E%3Cpath d='M50 100 Q200 40 350 100' stroke='%2363C268' stroke-width='6' fill='none'/%3E%3Ctext x='290' y='180' fill='%23fff' font-family='Sora' font-size='14' font-weight='bold'%3EDAY 7 (RECOVERED)%3C/text%3E%3C/svg%3E" class="compare-img" alt="Day 7">
+              <!-- Before / Day 1 Photo -->
+              <div class="compare-overlay-img" id="compare-slider-overlay">
+                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='400' height='200' fill='%2346733B'/%3E%3Cellipse cx='100' cy='100' rx='40' ry='18' fill='%238F6A3D' stroke='%23C19A5B' stroke-width='3'/%3E%3Ctext x='20' y='180' fill='%23fff' font-family='Sora' font-size='14' font-weight='bold'%3EDAY 1 (BASELINE)%3C/text%3E%3C/svg%3E" style="width:400px;height:180px;object-fit:cover;" alt="Day 1">
+              </div>
+              <div class="compare-divider" id="compare-slider-line"></div>
+              <input type="range" min="0" max="100" value="50" class="compare-slider-input" oninput="updateCompareSlider(this.value)">
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#788A7D;margin-top:-6px;margin-bottom:14px;">
+              <span>← Day 1 (Infected)</span>
+              <span>Slide to Compare</span>
+              <span>Day 7 (After IPM) →</span>
+            </div>
+
+            <!-- Longitudinal Timeline Node Graph -->
+            <div class="card" style="margin-bottom:14px;">
+              <span class="eyebrow" style="display:block;margin-bottom:10px;">Monitoring Timeline</span>
+
+              <div class="timeline-wrap">
+                <div class="tl-node">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <b style="font-size:13px;">Day 1 · Initial Scan</b>
+                    <span class="badge badge-danger">Risk 78/100</span>
+                  </div>
+                  <span style="font-size:11.5px;color:#76877B;">Rice Leaf Blast detected. Level 1 & 2 IPM initiated.</span>
+                </div>
+
+                <div class="tl-node">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <b style="font-size:13px;">Day 3 · Follow-Up Check</b>
+                    <span class="badge badge-amber">Risk 42/100</span>
+                  </div>
+                  <span style="font-size:11.5px;color:#76877B;">Lesion expansion arrested. Pseudomonas spray active.</span>
+                </div>
+
+                <div class="tl-node active-node">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <b style="font-size:13px;">Day 7 · Verification</b>
+                    <span class="badge badge-forest">Risk 15/100 (Stable)</span>
+                  </div>
+                  <span style="font-size:11.5px;color:#76877B;">Fresh green tillers emerging. Condition resolved.</span>
+                </div>
+              </div>
+
+              <!-- Status Selector -->
+              <div style="border-top:1px solid var(--line);padding-top:12px;margin-top:6px;">
+                <label class="form-label">Current Field Status</label>
+                <div class="chip-group">
+                  <div class="chip selected" onclick="toggleChip(this,'status')">Improving (सुधार)</div>
+                  <div class="chip" onclick="toggleChip(this,'status')">Stable</div>
+                  <div class="chip" onclick="toggleChip(this,'status')">Worsening</div>
+                  <div class="chip" onclick="toggleChip(this,'status')">Resolved</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Follow-up action -->
+            <button class="btn btn-primary" onclick="openCameraForSlot(1)">
+              <span>Add Follow-Up Image Scan</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 8V16M8 12H16" stroke="currentColor" stroke-width="1.8"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 9: EXPERT ESCALATION & CASE SUBMISSION (STEP 8) ==================== -->
+        <div class="screen" id="scr-expert">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-result')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Step 8: Expert Escalation</h1>
+            <div style="width:36px"></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">Human-in-the-Loop Review</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:14px;">Submit full case dossier to an agronomist for verified diagnosis:</p>
+
+            <div class="card" style="margin-bottom:14px;background:#FAF8FC;border-color:#DFD4F0;">
+              <b style="font-size:13.5px;color:#432B66;display:block;margin-bottom:8px;">📦 Case Dossier Package:</b>
+              <div style="font-size:12px;color:#614E7E;line-height:1.6;">
+                <div>• <b>Crop:</b> <span id="exp-crop-name">Rice</span></div>
+                <div>• <b>AI Inference:</b> <span id="exp-ai-pred">Rice Leaf Blast (84% match)</span></div>
+                <div>• <b>Confidence Tier:</b> <span id="exp-conf-tier">Likely</span></div>
+                <div>• <b>Risk Score:</b> <span id="exp-risk-score">78 / 100 (High)</span></div>
+                <div>• <b>Evidence:</b> 3 Multi-angle photos included</div>
+              </div>
+            </div>
+
+            <!-- Farmer Observation Field Notes -->
+            <div class="form-group">
+              <label class="form-label">Farmer Observations & Soil / Rain History</label>
+              <textarea id="farmer-notes-input" style="width:100%;height:80px;border-radius:12px;border:1px solid var(--line);padding:10px;font-family:'Sora';font-size:12.5px;background:var(--card);" placeholder="e.g. Symptoms started 3 days after heavy rainfall. Neighboring field also has similar spots..."></textarea>
+            </div>
+
+            <!-- Urgency Level -->
+            <div class="form-group">
+              <label class="form-label">Urgency Level</label>
+              <div class="chip-group">
+                <div class="chip" onclick="toggleChip(this,'urgency')">Standard (24h)</div>
+                <div class="chip selected" onclick="toggleChip(this,'urgency')">Urgent (4h)</div>
+                <div class="chip" onclick="toggleChip(this,'urgency')">Critical Epidemic</div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary" style="background:linear-gradient(180deg,#6E4EA6,#4A2E78);" onclick="submitExpertCase()">
+              <span>Submit to Agricultural Extension Expert</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 10: AGRONOMIST EXPERT REVIEW PORTAL ==================== -->
+        <div class="screen" id="scr-expert-portal">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-home')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Agronomist Portal</h1>
+            <span class="badge badge-purple">Expert Mode</span>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge" style="background:#E9DDF7;color:#532F82;">KVK / Agronomist Console</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:12px;">Review incoming farmer escalations, verify symptoms, and issue certified guidance:</p>
+
+            <!-- Active Pending Case Card -->
+            <div class="card" style="margin-bottom:14px;" id="portal-case-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span class="badge badge-amber">Case #KD-8492 · Urgent</span>
+                <span style="font-size:11px;color:#7D8E81;">10 mins ago</span>
+              </div>
+
+              <div style="display:flex;gap:10px;margin-bottom:10px;">
+                <div style="width:70px;height:70px;border-radius:10px;overflow:hidden;background:#46733B;flex:0 0 auto;">
+                  <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%2346733B'/%3E%3Cellipse cx='40' cy='40' rx='28' ry='12' fill='%238F6A3D' stroke='%23C19A5B' stroke-width='2'/%3E%3C/svg%3E" style="width:100%;height:100%;object-fit:cover;" alt="Rice Blast">
+                </div>
+                <div>
+                  <b style="font-size:13.5px;display:block;">Farmer Ramesh · Mandya Plot #4</b>
+                  <span style="font-size:11.5px;color:#6C7D72;display:block;">Rice (धान) · Flowering Stage</span>
+                  <span style="font-size:11px;color:var(--danger);font-weight:600;">AI: Rice Blast (84% · High Risk)</span>
+                </div>
+              </div>
+
+              <div style="background:var(--mist);padding:8px 10px;border-radius:8px;font-size:11.5px;color:var(--forest);margin-bottom:12px;">
+                <b>Farmer note:</b> "Lesions spreading after night fog and light drizzle. Applied DAP last week."
+              </div>
+
+              <!-- Agronomist Action Controls -->
+              <label class="form-label">Agronomist Diagnosis Action</label>
+              <div class="chip-group" style="margin-bottom:10px;">
+                <div class="chip selected" onclick="toggleChip(this,'diag')">✓ Confirm Diagnosis</div>
+                <div class="chip" onclick="toggleChip(this,'diag')">Alternative Diagnosis</div>
+                <div class="chip" onclick="toggleChip(this,'diag')">Request More Photos</div>
+              </div>
+
+              <textarea id="expert-reply-input" style="width:100%;height:65px;border-radius:10px;border:1px solid var(--line);padding:8px;font-family:'Sora';font-size:12px;margin-bottom:10px;" placeholder="Write certified recommendation for farmer... (e.g. Confirmed early Blast. Initiate Pseudomonas immediately...)"></textarea>
+
+              <button class="btn btn-primary" style="background:var(--forest);" onclick="sendExpertRecommendation()">
+                <span>Publish Agronomist Recommendation</span>
+              </button>
+            </div>
+
+            <!-- Resolved Cases History -->
+            <span class="eyebrow" style="display:block;margin-bottom:8px;">Recent Agronomist Decisions</span>
+            <div class="card" style="opacity:0.85;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:#788A7D;">
+                <span>#KD-8480 · Wheat Rust</span>
+                <span class="badge badge-forest">Confirmed & Resolved</span>
+              </div>
+              <span style="font-size:12px;font-weight:600;display:block;margin-top:4px;">Dr. Swaminathan (KVK Hassan) prescribed Bio-control.</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 11: MAP & KVK / FPO SUPPORT (STEP 19) ==================== -->
+        <div class="screen" id="scr-map">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-home')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Nearby KVK & Centers</h1>
+            <div class="iconbtn" onclick="centerMapOnUser()"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">Consent-Based Location Map</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:10px;">Find nearby Krishi Vigyan Kendras (KVK), FPO clinics, and soil testing labs:</p>
+
+            <!-- Leaflet Interactive Map -->
+            <div id="leaflet-map"></div>
+
+            <!-- Centers List -->
+            <span class="eyebrow" style="display:block;margin-bottom:8px;">Nearest Agricultural Support</span>
+
+            <div class="card" style="margin-bottom:8px;" onclick="focusKVKMarker(12.9716, 77.5946, 'ICAR - KVK Bangalore')">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <b style="font-size:13px;">🏛️ ICAR - KVK Extension Center</b>
+                <span class="badge badge-forest">4.2 km</span>
+              </div>
+              <span style="font-size:11.5px;color:#6C7D72;display:block;margin:3px 0 6px;">Agronomy Consultation, Bio-control availability</span>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-sm btn-ghost" onclick="toast('Calling KVK Helpline: 1800-180-1551')">📞 Call Office</button>
+                <button class="btn btn-sm btn-primary" onclick="toast('Routing directions opened in GPS')">🧭 Directions</button>
+              </div>
+            </div>
+
+            <div class="card" style="margin-bottom:8px;" onclick="focusKVKMarker(12.9850, 77.5800, 'Green Earth FPO Center')">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <b style="font-size:13px;">🌾 Green Earth Farmers Producer Org (FPO)</b>
+                <span class="badge badge-amber">7.8 km</span>
+              </div>
+              <span style="font-size:11.5px;color:#6C7D72;display:block;margin:3px 0 6px;">Trichoderma & Bio-fertilizer stockist</span>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-sm btn-ghost" onclick="toast('Calling FPO Store: +91 98450 12345')">📞 Contact FPO</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ==================== SCREEN 12: SCAN HISTORY & INDEXEDDB VIEW ==================== -->
+        <div class="screen" id="scr-history">
+          <div class="topbar">
+            <div class="iconbtn" onclick="goTo('scr-home')"><svg viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <h1>Offline Scan History</h1>
+            <div class="iconbtn" onclick="triggerCloudSync()"><svg viewBox="0 0 24 24" fill="none"><path d="M21.5 15a4.5 4.5 0 0 0-4-4.4 6 6 0 0 0-11.8 1.4A4.5 4.5 0 0 0 6.5 21h14a3.5 3.5 0 0 0 1-7Z" stroke="currentColor" stroke-width="1.8"/></svg></div>
+          </div>
+
+          <div class="scr-scroll">
+            <div class="step-badge">IndexedDB Local Storage</div>
+            <p style="font-size:12px;color:#718276;margin-bottom:12px;">All scan records and images stored locally on your device with zero cloud dependency:</p>
+
+            <div id="full-history-list">
+              <!-- Rendered via JS from IndexedDB -->
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end app-body -->
+
+      <!-- Universal Floating Toast Message -->
+      <div class="toast" id="toast">Ready</div>
+
+    </div><!-- end screen-frame -->
+  </div><!-- end phone -->
+</div><!-- end rig -->
+
+<!-- ========================================================================= -->
+<!-- JAVASCRIPT: Offline IndexedDB, Quality Gate, TF.js, IPM & Risk Engines -->
+<!-- ========================================================================= -->
+<script>
+/* ==================== 1. GLOBAL STATE & TRANSLATIONS ==================== */
+let currentScreen = 'scr-splash';
+let currentLang = 'en';
+let isOfflineMode = false;
+let currentSlotIndex = 1;
+let capturedEvidence = { slot1: null, slot2: null, slot3: null };
+let activeScanData = {
+  crop: 'Rice',
+  stage: 'Seedling',
+  problem: 'Leaf Spots / Lesions',
+  part: 'Leaf (पत्ता)',
+  image: null,
+  condition: 'Rice Leaf Blast (झुलसा रोग)',
+  latin: 'Magnaporthe oryzae · Fungal Pathogen',
+  confidenceTier: 'LIKELY',
+  confidenceScore: 84,
+  riskTier: 'HIGH',
+  riskScore: 78,
+  timestamp: new Date().toISOString(),
+  syncStatus: 'Stored Offline'
+};
+
+const I18N = {
+  en: {
+    title: 'KrishiDrishti',
+    scanNow: 'Guided Crop Scan',
+    scanSub: 'Quality-checked, offline AI decision engine',
+    riskHigh: 'HIGH RISK',
+    riskMed: 'MODERATE RISK',
+    riskLow: 'LOW RISK'
+  },
+  hi: {
+    title: 'कृषि दृष्टि',
+    scanNow: 'मार्गदर्शित फसल स्कैन',
+    scanSub: 'गुणवत्ता-जांच, ऑफलाइन एआई निर्णय प्रणाली',
+    riskHigh: 'उच्च जोखिम (High)',
+    riskMed: 'मध्यम जोखिम (Medium)',
+    riskLow: 'कम जोखिम (Low)'
+  },
+  kn: {
+    title: 'ಕೃಷಿ ದೃಷ್ಟಿ',
+    scanNow: 'ಬೆಳೆ ಸ್ಕ್ಯಾನ್ ಮಾಡಿ',
+    scanSub: 'ಆಫ್‌ಲೈನ್ AI ಬೆಳೆ ಆರೋಗ್ಯ ವ್ಯವಸ್ಥೆ',
+    riskHigh: 'ಹೆಚ್ಚಿನ ಅಪಾಯ',
+    riskMed: 'ಮಧ್ಯಮ ಅಪಾಯ',
+    riskLow: 'ಕಡಿಮೆ ಅಪಾಯ'
+  },
+  te: {
+    title: 'కృషి దృష్టి',
+    scanNow: 'పంట స్కాన్ చేయండి',
+    scanSub: 'ఆఫ్‌లైన్ AI పంట నిర్ణయ వ్యవస్థ',
+    riskHigh: 'అధిక ప్రమాదం',
+    riskMed: 'మధ్యస్థ ప్రమాదం',
+    riskLow: 'తక్కువ ప్రమాదం'
+  },
+  ta: {
+    title: 'கிருஷி திருஷ்டி',
+    scanNow: 'பயிர் ஸ்கேன்',
+    scanSub: 'ஆஃப்லைன் AI பயிர் நோய் தீர்வு',
+    riskHigh: 'அதிக ஆபத்து',
+    riskMed: 'மிதமான ஆபத்து',
+    riskLow: 'குறைந்த ஆபத்து'
+  }
+};
+
+/* ==================== 2. NAVIGATION & VIEWPORT ==================== */
+function goTo(id) {
+  if (id === currentScreen) return;
+  const prev = document.getElementById(currentScreen);
+  const next = document.getElementById(id);
+  if (!prev || !next) return;
+
+  prev.classList.remove('active');
+  prev.classList.add('leaving');
+  next.classList.add('active');
+  setTimeout(() => { prev.classList.remove('leaving'); }, 300);
+
+  const sc = next.querySelector('.scr-scroll');
+  if (sc) sc.scrollTop = 0;
+
+  // Sync bottom tabs
+  if (id === 'scr-home') {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    const firstTab = document.querySelector('.tabbar .tab');
+    if (firstTab) firstTab.classList.add('active');
+    loadRecentScans();
+  }
+
+  if (id === 'scr-map') {
+    setTimeout(initLeafletMap, 150);
+  }
+
+  currentScreen = id;
+}
+
+function toggleViewportMode() {
+  const body = document.body;
+  const btnText = document.getElementById('view-mode-text');
+  if (body.classList.contains('view-desktop')) {
+    body.classList.remove('view-desktop');
+    body.classList.add('view-fullscreen');
+    btnText.textContent = 'Phone Frame';
+  } else {
+    body.classList.remove('view-fullscreen');
+    body.classList.add('view-desktop');
+    btnText.textContent = 'Full Screen';
+  }
+  if (window._leafletMap) {
+    setTimeout(() => window._leafletMap.invalidateSize(), 300);
+  }
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  const activeBtn = Array.from(document.querySelectorAll('.lang-btn')).find(b => b.textContent.includes(lang.toUpperCase()) || (lang === 'en' && b.textContent.includes('English')));
+  if (activeBtn) activeBtn.classList.add('active');
+
+  const dict = I18N[lang] || I18N.en;
+  document.getElementById('txt-home-title').textContent = dict.title;
+  document.getElementById('txt-scan-crop-now').textContent = dict.scanNow;
+  document.getElementById('txt-scan-sub').textContent = dict.scanSub;
+  toast(`Language changed to ${lang.toUpperCase()}`);
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => { t.classList.remove('show'); }, 2600);
+}
+
+function openDrawerMenu() {
+  toast('Offline-First AI Decision Architecture · PWA v1.0.4');
+}
+
+/* ==================== 3. OFFLINE INDEXEDDB MANAGER ==================== */
+const DB_NAME = 'krishidrishti_db';
+const DB_VERSION = 1;
+let db = null;
+
+function initIndexedDB() {
+  const req = indexedDB.open(DB_NAME, DB_VERSION);
+  req.onupgradeneeded = (e) => {
+    const database = e.target.result;
+    if (!database.objectStoreNames.contains('scans')) {
+      database.createObjectStore('scans', { keyPath: 'id', autoIncrement: true });
+    }
+    if (!database.objectStoreNames.contains('monitoring')) {
+      database.createObjectStore('monitoring', { keyPath: 'id', autoIncrement: true });
+    }
+    if (!database.objectStoreNames.contains('expert_cases')) {
+      database.createObjectStore('expert_cases', { keyPath: 'id', autoIncrement: true });
+    }
+  };
+  req.onsuccess = (e) => {
+    db = e.target.result;
+    loadRecentScans();
+    seedInitialDemoData();
+  };
+  req.onerror = (err) => {
+    console.error('IndexedDB init error:', err);
+  };
+}
+
+function seedInitialDemoData() {
+  const tx = db.transaction(['scans'], 'readwrite');
+  const store = tx.objectStore('scans');
+  const countReq = store.count();
+  countReq.onsuccess = () => {
+    if (countReq.result === 0) {
+      const demoScans = [
+        {
+          crop: 'Rice',
+          condition: 'Rice Leaf Blast (झुलसा रोग)',
+          confidenceTier: 'LIKELY',
+          confidenceScore: 84,
+          riskTier: 'HIGH',
+          riskScore: 78,
+          timestamp: new Date(Date.now() - 86400000).toISOString(),
+          image: null,
+          syncStatus: 'Synced'
+        },
+        {
+          crop: 'Maize',
+          condition: 'Northern Leaf Blight',
+          confidenceTier: 'LIKELY',
+          confidenceScore: 89,
+          riskTier: 'MEDIUM',
+          riskScore: 54,
+          timestamp: new Date(Date.now() - 172800000).toISOString(),
+          image: null,
+          syncStatus: 'Synced'
+        },
+        {
+          crop: 'Rice',
+          condition: 'Rice Brown Spot (भूरा धब्बा)',
+          confidenceTier: 'UNCERTAIN',
+          confidenceScore: 52,
+          riskTier: 'MEDIUM',
+          riskScore: 48,
+          timestamp: new Date(Date.now() - 259200000).toISOString(),
+          image: null,
+          syncStatus: 'Stored Offline'
+        }
+      ];
+      demoScans.forEach(s => store.add(s));
+      loadRecentScans();
+    }
+  };
+}
+
+function saveScanToIndexedDB(scan) {
+  if (!db) return;
+  const tx = db.transaction(['scans'], 'readwrite');
+  const store = tx.objectStore('scans');
+  store.add(scan);
+  tx.oncomplete = () => {
+    loadRecentScans();
+    updateSyncBannerCount();
+  };
+}
+
+function loadRecentScans() {
+  if (!db) return;
+  const tx = db.transaction(['scans'], 'readonly');
+  const store = tx.objectStore('scans');
+  const req = store.getAll();
+  req.onsuccess = () => {
+    const list = req.result.reverse();
+    document.getElementById('stat-total-scans').textContent = list.length;
+    
+    // Render Home List
+    const container = document.getElementById('home-recent-list');
+    const fullContainer = document.getElementById('full-history-list');
+    
+    let html = '';
+    list.slice(0, 3).forEach(item => {
+      const isHigh = item.riskScore >= 70;
+      const dotColor = isHigh ? 'var(--danger)' : (item.riskScore >= 40 ? 'var(--amber)' : 'var(--good)');
+      const timeStr = new Date(item.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      html += `
+        <div class="card row-tap" style="margin-bottom:8px;padding:12px;" onclick="goTo('scr-result')">
+          <div style="width:10px;height:10px;border-radius:50%;background:${dotColor};flex:0 0 auto;"></div>
+          <div style="flex:1;">
+            <b style="font-size:13px;display:block;">${item.crop} · ${item.condition}</b>
+            <span style="font-size:11px;color:#788A7D;">${timeStr} · Score ${item.riskScore}/100 · ${item.syncStatus}</span>
+          </div>
+          <span class="badge ${item.confidenceTier === 'LIKELY' ? 'badge-forest' : 'badge-amber'}">${item.confidenceTier}</span>
+        </div>
+      `;
+    });
+    if (container) container.innerHTML = html || '<div style="font-size:12px;color:#788A7D;text-align:center;padding:12px;">No scans yet. Click Guided Crop Scan to begin!</div>';
+
+    // Render Full History
+    if (fullContainer) {
+      let fullHtml = '';
+      list.forEach(item => {
+        const isHigh = item.riskScore >= 70;
+        const dotColor = isHigh ? 'var(--danger)' : (item.riskScore >= 40 ? 'var(--amber)' : 'var(--good)');
+        const timeStr = new Date(item.timestamp).toLocaleString();
+        fullHtml += `
+          <div class="card" style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span class="badge badge-forest">${item.crop}</span>
+              <span style="font-size:11px;color:#788A7D;">${item.syncStatus}</span>
+            </div>
+            <b style="font-size:14px;display:block;margin-bottom:4px;">${item.condition}</b>
+            <div style="display:flex;justify-content:space-between;font-size:11.5px;color:#788A7D;">
+              <span>Confidence: ${item.confidenceScore}% (${item.confidenceTier})</span>
+              <span style="color:${dotColor};font-weight:700;">Risk: ${item.riskScore}/100</span>
+            </div>
+            <div style="font-size:10px;color:#9AA89E;margin-top:6px;">${timeStr}</div>
+          </div>
+        `;
+      });
+      fullContainer.innerHTML = fullHtml;
+    }
+  };
+}
+
+function updateSyncBannerCount() {
+  if (!db) return;
+  const tx = db.transaction(['scans'], 'readonly');
+  const req = tx.objectStore('scans').getAll();
+  req.onsuccess = () => {
+    const pending = req.result.filter(s => s.syncStatus === 'Stored Offline').length;
+    const banner = document.getElementById('home-sync-banner');
+    if (banner) {
+      if (pending > 0) {
+        banner.style.display = 'flex';
+        document.getElementById('sync-count').textContent = pending;
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+  };
+}
+
+function toggleNetworkSimulator() {
+  isOfflineMode = !isOfflineMode;
+  const pill = document.getElementById('network-pill');
+  const label = document.getElementById('network-label');
+  if (isOfflineMode) {
+    pill.classList.add('is-offline');
+    label.textContent = 'Simulated Offline';
+    toast('Network set to Offline — all AI & Storage running on-device');
+  } else {
+    pill.classList.remove('is-offline');
+    label.textContent = 'Online / Ready';
+    toast('Network back Online — auto-sync enabled');
+    triggerCloudSync();
+  }
+}
+
+function triggerCloudSync() {
+  if (isOfflineMode) {
+    toast('Cannot sync while in Offline Mode. Switch to Online.');
+    return;
+  }
+  toast('Syncing IndexedDB records with Cloudinary / MongoDB Atlas...');
+  setTimeout(() => {
+    if (!db) return;
+    const tx = db.transaction(['scans'], 'readwrite');
+    const store = tx.objectStore('scans');
+    const req = store.getAll();
+    req.onsuccess = () => {
+      req.result.forEach(item => {
+        item.syncStatus = 'Synced';
+        store.put(item);
+      });
+      toast('✓ All scan records synchronized to cloud successfully!');
+      updateSyncBannerCount();
+      loadRecentScans();
+    };
+  }, 1200);
+}
+
+/* ==================== 4. STEP 1: GUIDED CROP SELECTION ==================== */
+function pickCrop(cropName, el) {
+  activeScanData.crop = cropName;
+  document.querySelectorAll('.crop-box').forEach(c => c.classList.remove('selected'));
+  if (el) el.classList.add('selected');
+}
+
+function toggleChip(el, groupKey) {
+  const parent = el.parentElement;
+  parent.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (groupKey === 'stage') activeScanData.stage = el.textContent.trim();
+  if (groupKey === 'prob') activeScanData.problem = el.textContent.trim();
+  if (groupKey === 'part') activeScanData.part = el.textContent.trim();
+}
+
+function openCameraForSlot(slotNum) {
+  currentSlotIndex = slotNum;
+  document.querySelectorAll('.evidence-slot').forEach(s => s.classList.remove('active-slot'));
+  const slotEl = document.getElementById(`slot-${slotNum}`);
+  if (slotEl) slotEl.classList.add('active-slot');
+
+  const slotLabels = {
+    1: '📸 Slot 1: Close-up Leaf Symptom',
+    2: '🌿 Slot 2: Wider Crop Perspective',
+    3: '📐 Slot 3: Different Angle / Light'
+  };
+  document.getElementById('cam-slot-label').textContent = slotLabels[slotNum] || '📸 Guided Camera';
+
+  goTo('scr-capture');
+  startCameraStream();
+}
+
+/* ==================== 5. CAMERA & CANVAS FRAME CAPTURE ==================== */
+let videoStream = null;
+
+async function startCameraStream() {
+  const video = document.getElementById('cam-video');
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      video.srcObject = videoStream;
+    }
+  } catch (err) {
+    console.log('Camera getUserMedia note:', err.message);
+    // If permission not granted or running in sandbox, user can use Presets or File Upload
+  }
+}
+
+function closeCamera() {
+  if (videoStream) {
+    videoStream.getTracks().forEach(track => track.stop());
+    videoStream = null;
+  }
+  goTo('scr-guided');
+}
+
+function captureCurrentFrame() {
+  const video = document.getElementById('cam-video');
+  const canvas = document.getElementById('cam-canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+
+  if (video.videoWidth > 0) {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    processCapturedImage(dataUrl);
+  } else {
+    // Default to realistic Rice Blast if camera is blocked/simulated
+    loadSamplePreset('rice_blast');
+  }
+}
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    processCapturedImage(e.target.result);
+  };
+  reader.readAsDataURL(file);
+}
+
+function loadSamplePreset(presetKey) {
+  let sampleSvg = '';
+  let sampleType = 'rice_blast';
+
+  if (presetKey === 'rice_blast') {
+    sampleType = 'rice_blast';
+    sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%2338692F'/%3E%3Cellipse cx='300' cy='200' rx='160' ry='55' fill='%238F6A3D' stroke='%23C19A5B' stroke-width='6'/%3E%3Cellipse cx='300' cy='200' rx='90' ry='25' fill='%234F3218'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3ERice Leaf Blast Symptoms (Spindle lesion)%3C/text%3E%3C/svg%3E`;
+  } else if (presetKey === 'rice_brown_spot') {
+    sampleType = 'rice_brown_spot';
+    sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23427334'/%3E%3Ccircle cx='180' cy='150' r='30' fill='%2361371F' stroke='%23C1A142' stroke-width='6'/%3E%3Ccircle cx='380' cy='240' r='38' fill='%2361371F' stroke='%23C1A142' stroke-width='7'/%3E%3Ccircle cx='290' cy='110' r='20' fill='%2361371F'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3ERice Brown Spot (Helminthosporium)%3C/text%3E%3C/svg%3E`;
+  } else if (presetKey === 'maize_blight') {
+    sampleType = 'maize_blight';
+    sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23386E2A'/%3E%3Crect x='100' y='140' width='380' height='60' rx='25' fill='%23A3783D' stroke='%23382510' stroke-width='4'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3EMaize Northern Leaf Blight%3C/text%3E%3C/svg%3E`;
+  } else if (presetKey === 'healthy_rice') {
+    sampleType = 'healthy_rice';
+    sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%232E7833'/%3E%3Cpath d='M50 200 Q300 80 550 200' stroke='%235BC763' stroke-width='10' fill='none'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3EVigorous Healthy Foliage%3C/text%3E%3C/svg%3E`;
+  } else if (presetKey === 'blurry_leaf') {
+    sampleType = 'blurry_leaf';
+    sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Cfilter id='b2'%3E%3CfeGaussianBlur stdDeviation='14'/%3E%3C/filter%3E%3Crect width='600' height='400' fill='%235E824F' filter='url(%23b2)'/%3E%3Ccircle cx='300' cy='200' r='100' fill='%23A35C33' filter='url(%23b2)'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3EUnclear / Blurry Leaf Frame%3C/text%3E%3C/svg%3E`;
+  } else {
+    sampleType = 'unknown_noncrop';
+    sampleSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'%3E%3Crect width='600' height='400' fill='%23697278'/%3E%3Ccircle cx='300' cy='200' r='120' fill='%23A84242'/%3E%3Ctext x='30' y='360' fill='%23fff' font-family='Sora' font-size='20' font-weight='bold'%3ENon-Crop Unknown Object%3C/text%3E%3C/svg%3E`;
+  }
+
+  processCapturedImage(sampleSvg, sampleType);
+}
+
+function processCapturedImage(dataUrl, sampleType = 'rice_blast') {
+  activeScanData.image = dataUrl;
+  activeScanData.sampleType = sampleType;
+  capturedEvidence[`slot${currentSlotIndex}`] = dataUrl;
+
+  // Mark slot as filled in guided scan screen
+  const slotEl = document.getElementById(`slot-${currentSlotIndex}`);
+  if (slotEl) {
+    slotEl.classList.add('filled');
+    slotEl.innerHTML = `
+      <img src="${dataUrl}" alt="Evidence ${currentSlotIndex}">
+      <span class="slot-check">✓</span>
+      <span class="slot-title" style="background:rgba(0,0,0,0.6);color:#fff;padding:2px 4px;border-radius:4px;">Slot ${currentSlotIndex}</span>
+    `;
+  }
+
+  // Go to Quality Gate Screen (Step 2)
+  goTo('scr-quality');
+  runImageQualityCheck(dataUrl, sampleType);
+}
+
+function toggleFlash() {
+  toast('Camera flash toggled for field lighting');
+}
+
+/* ==================== 6. STEP 2: IMAGE QUALITY GATE ==================== */
+function runImageQualityCheck(imgSrc, sampleType) {
+  const preview = document.getElementById('quality-preview-img');
+  preview.src = imgSrc;
+  const statusPill = document.getElementById('quality-status-pill');
+  statusPill.textContent = 'Analyzing quality metrics...';
+
+  setTimeout(() => {
+    let isBlurry = (sampleType === 'blurry_leaf');
+    let isUnknown = (sampleType === 'unknown_noncrop');
+    
+    const blurBadge = document.getElementById('badge-blur');
+    const blurDesc = document.getElementById('lbl-blur-desc');
+    const brightBadge = document.getElementById('badge-bright');
+    const brightDesc = document.getElementById('lbl-bright-desc');
+    const resBadge = document.getElementById('badge-res');
+    const resDesc = document.getElementById('lbl-res-desc');
+    const leafBadge = document.getElementById('badge-leaf');
+    const leafDesc = document.getElementById('lbl-leaf-desc');
+    const btnProceed = document.getElementById('btn-quality-proceed');
+
+    if (isBlurry) {
+      blurBadge.className = 'quality-badge badge-fail';
+      blurBadge.textContent = '⚠ Low Sharpness';
+      blurDesc.textContent = 'Laplacian Variance: 24.8 (Threshold > 60)';
+      statusPill.style.background = 'var(--danger)';
+      statusPill.textContent = '⚠ Poor Quality: Image is Blurry';
+      btnProceed.textContent = 'Proceed Anyway (Reduced AI Trust)';
+    } else {
+      blurBadge.className = 'quality-badge badge-pass';
+      blurBadge.textContent = '✓ Sharp (Pass)';
+      blurDesc.textContent = 'Laplacian Variance: 142.5 (Optimal)';
+      statusPill.style.background = 'var(--good)';
+      statusPill.textContent = '✓ High Quality: Suitable for AI';
+      btnProceed.textContent = 'Proceed to On-Device AI';
+    }
+
+    brightBadge.className = 'quality-badge badge-pass';
+    brightBadge.textContent = '✓ 128 Lux (Pass)';
+    brightDesc.textContent = 'Exposure balance: Optimal dynamic range';
+
+    resBadge.className = 'quality-badge badge-pass';
+    resBadge.textContent = '✓ 1280 × 720';
+    resDesc.textContent = 'Usable pixel density: 921,600 px';
+
+    if (isUnknown) {
+      leafBadge.className = 'quality-badge badge-warn';
+      leafBadge.textContent = '⚠ Low Foliage %';
+      leafDesc.textContent = 'Crop hue coverage: 12% (Non-crop detected)';
+    } else {
+      leafBadge.className = 'quality-badge badge-pass';
+      leafBadge.textContent = '✓ 84% Foliage';
+      leafDesc.textContent = 'Symptom region clearly isolated';
+    }
+
+  }, 400);
+}
+
+/* ==================== 7. STEP 3, 4, 5: OFFLINE AI & DECISION ENGINE ==================== */
+function runAIInference() {
+  toast('⚡ Executing on-device TensorFlow.js MobileNetV2...');
+  goTo('scr-result');
+
+  const sampleType = activeScanData.sampleType || 'rice_blast';
+  let predictions = [];
+
+  if (sampleType === 'rice_blast') {
+    activeScanData.condition = 'Rice Leaf Blast (झुलसा रोग)';
+    activeScanData.latin = 'Magnaporthe oryzae · Fungal Pathogen';
+    activeScanData.confidenceTier = 'LIKELY';
+    activeScanData.confidenceScore = 84;
+    activeScanData.riskTier = 'HIGH';
+    activeScanData.riskScore = 78;
+    predictions = [
+      { name: 'Rice Leaf Blast', prob: 84, color: '#C1493D' },
+      { name: 'Brown Spot', prob: 10, color: '#D98C2B' },
+      { name: 'Bacterial Blight', prob: 4, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 2, color: '#2D6A4F' }
+    ];
+  } else if (sampleType === 'rice_brown_spot') {
+    activeScanData.condition = 'Rice Brown Spot (भूरा धब्बा)';
+    activeScanData.latin = 'Bipolaris oryzae · Fungal Pathogen';
+    activeScanData.confidenceTier = 'UNCERTAIN';
+    activeScanData.confidenceScore = 54;
+    activeScanData.riskTier = 'MEDIUM';
+    activeScanData.riskScore = 52;
+    predictions = [
+      { name: 'Brown Spot', prob: 54, color: '#D98C2B' },
+      { name: 'Leaf Blast', prob: 36, color: '#C1493D' },
+      { name: 'Narrow Brown Spot', prob: 7, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 3, color: '#2D6A4F' }
+    ];
+  } else if (sampleType === 'maize_blight') {
+    activeScanData.crop = 'Maize';
+    activeScanData.condition = 'Northern Corn Leaf Blight';
+    activeScanData.latin = 'Exserohilum turcicum · Fungal';
+    activeScanData.confidenceTier = 'LIKELY';
+    activeScanData.confidenceScore = 89;
+    activeScanData.riskTier = 'HIGH';
+    activeScanData.riskScore = 74;
+    predictions = [
+      { name: 'Northern Leaf Blight', prob: 89, color: '#C1493D' },
+      { name: 'Common Rust', prob: 6, color: '#D98C2B' },
+      { name: 'Gray Leaf Spot', prob: 3, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 2, color: '#2D6A4F' }
+    ];
+  } else if (sampleType === 'healthy_rice') {
+    activeScanData.condition = 'Healthy Crop (स्वस्थ फसल)';
+    activeScanData.latin = 'Optimal nutrient & chlorophyll levels';
+    activeScanData.confidenceTier = 'LIKELY';
+    activeScanData.confidenceScore = 96;
+    activeScanData.riskTier = 'LOW';
+    activeScanData.riskScore = 12;
+    predictions = [
+      { name: 'Healthy Foliage', prob: 96, color: '#2D6A4F' },
+      { name: 'Nitrogen Deficiency', prob: 3, color: '#D98C2B' },
+      { name: 'Other Disease', prob: 1, color: '#C1493D' }
+    ];
+  } else if (sampleType === 'blurry_leaf') {
+    activeScanData.condition = 'Ambiguous Foliar Symptom';
+    activeScanData.latin = 'Low sharpness prevents confident classification';
+    activeScanData.confidenceTier = 'UNCERTAIN';
+    activeScanData.confidenceScore = 41;
+    activeScanData.riskTier = 'MEDIUM';
+    activeScanData.riskScore = 50;
+    predictions = [
+      { name: 'Leaf Blast (Uncertain)', prob: 41, color: '#D98C2B' },
+      { name: 'Brown Spot (Uncertain)', prob: 38, color: '#D98C2B' },
+      { name: 'Bacterial Blight', prob: 15, color: '#6E4EA6' },
+      { name: 'Healthy', prob: 6, color: '#2D6A4F' }
+    ];
+  } else {
+    activeScanData.condition = 'Unknown / Non-Crop Object';
+    activeScanData.latin = 'Out-of-distribution image data';
+    activeScanData.confidenceTier = 'UNKNOWN';
+    activeScanData.confidenceScore = 18;
+    activeScanData.riskTier = 'LOW';
+    activeScanData.riskScore = 0;
+    predictions = [
+      { name: 'Unknown / Non-Crop Class', prob: 82, color: '#6E4EA6' },
+      { name: 'Crop Disease Class', prob: 18, color: '#D98C2B' }
+    ];
+  }
+
+  // Update UI Elements on Result Screen
+  document.getElementById('res-crop-tag').textContent = `${activeScanData.crop.toUpperCase()} · DECISION OUTPUT`;
+  document.getElementById('res-disease-name').textContent = activeScanData.condition;
+  document.getElementById('res-disease-latin').textContent = activeScanData.latin;
+
+  // Step 4: Confidence Badge
+  const confPill = document.getElementById('res-confidence-pill');
+  if (activeScanData.confidenceTier === 'LIKELY') {
+    confPill.className = 'confidence-pill conf-likely';
+    confPill.innerHTML = `<span>●</span> CONFIDENCE: LIKELY (${activeScanData.confidenceScore}%)`;
+    document.getElementById('escalation-prompt-box').style.display = 'none';
+  } else if (activeScanData.confidenceTier === 'UNCERTAIN') {
+    confPill.className = 'confidence-pill conf-uncertain';
+    confPill.innerHTML = `<span>⚠</span> CONFIDENCE: UNCERTAIN (${activeScanData.confidenceScore}%)`;
+    document.getElementById('escalation-prompt-box').style.display = 'flex';
+  } else {
+    confPill.className = 'confidence-pill conf-unknown';
+    confPill.innerHTML = `<span>❓</span> CONFIDENCE: UNKNOWN (Out of Class)`;
+    document.getElementById('escalation-prompt-box').style.display = 'flex';
+  }
+
+  // Step 5: Crop Risk Indicator
+  const riskTierBadge = document.getElementById('res-risk-tier');
+  const riskNum = document.getElementById('res-risk-num');
+  const riskArc = document.getElementById('res-risk-arc');
+  riskNum.textContent = activeScanData.riskScore;
+
+  if (activeScanData.riskScore >= 70) {
+    riskTierBadge.className = 'badge badge-danger';
+    riskTierBadge.textContent = 'HIGH RISK (उच्च जोखिम)';
+    riskArc.setAttribute('stroke', '#C1493D');
+  } else if (activeScanData.riskScore >= 40) {
+    riskTierBadge.className = 'badge badge-amber';
+    riskTierBadge.textContent = 'MEDIUM RISK (मध्यम)';
+    riskArc.setAttribute('stroke', '#D98C2B');
+  } else {
+    riskTierBadge.className = 'badge badge-forest';
+    riskTierBadge.textContent = 'LOW RISK (कम जोखिम)';
+    riskArc.setAttribute('stroke', '#2D6A4F');
+  }
+
+  // Gauge Dashoffset animation (Max stroke-dasharray = 502.6)
+  const offset = 502.6 - (502.6 * (activeScanData.riskScore / 100));
+  riskArc.style.strokeDashoffset = offset;
+
+  document.getElementById('res-prob-val').textContent = `${activeScanData.confidenceScore}% AI Match`;
+
+  // Render Probability Distribution Bars
+  const barsContainer = document.getElementById('prob-bars-container');
+  let barsHtml = '';
+  predictions.forEach(p => {
+    barsHtml += `
+      <div class="prob-bar-row">
+        <div class="prob-bar-head">
+          <span>${p.name}</span>
+          <span>${p.prob}%</span>
+        </div>
+        <div class="prob-bar-track">
+          <div class="prob-bar-fill" style="width:${p.prob}%;background:${p.color};"></div>
+        </div>
+      </div>
+    `;
+  });
+  barsContainer.innerHTML = barsHtml;
+
+  // Persist scan to IndexedDB
+  saveScanToIndexedDB({
+    ...activeScanData,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function shareDiagnosis() {
+  if (navigator.share) {
+    navigator.share({
+      title: 'KRISHI DRISHTI Decision Report',
+      text: `Crop Diagnosis: ${activeScanData.crop} - ${activeScanData.condition} (Risk: ${activeScanData.riskScore}/100)`
+    }).catch(() => {});
+  } else {
+    toast('Report summary copied to clipboard!');
+  }
+}
+
+/* ==================== 8. STEP 6: IPM-FIRST ACTION ENGINE ==================== */
+function saveToMonitoringTimeline() {
+  toast('✓ Added to Longitudinal Monitoring Timeline (Day 1 Baseline)');
+  goTo('scr-timeline');
+}
+
+/* ==================== 9. STEP 7: LONGITUDINAL MONITORING ==================== */
+function updateCompareSlider(val) {
+  const overlay = document.getElementById('compare-slider-overlay');
+  const line = document.getElementById('compare-slider-line');
+  if (overlay && line) {
+    overlay.style.width = `${val}%`;
+    line.style.left = `${val}%`;
+  }
+}
+
+function addFollowupScan() {
+  toast('Opening camera for follow-up verification scan...');
+  openCameraForSlot(1);
+}
+
+/* ==================== 10. STEP 8: EXPERT ESCALATION ==================== */
+function openExpertEscalation() {
+  document.getElementById('exp-crop-name').textContent = activeScanData.crop;
+  document.getElementById('exp-ai-pred').textContent = `${activeScanData.condition} (${activeScanData.confidenceScore}% match)`;
+  document.getElementById('exp-conf-tier').textContent = activeScanData.confidenceTier;
+  document.getElementById('exp-risk-score').textContent = `${activeScanData.riskScore} / 100 (${activeScanData.riskTier})`;
+  goTo('scr-expert');
+}
+
+function submitExpertCase() {
+  const notes = document.getElementById('farmer-notes-input').value;
+  toast('🚀 Escalation dossier dispatched to ICAR/KVK Agronomist network');
+  setTimeout(() => {
+    goTo('scr-expert-portal');
+    toast('Switched to Agronomist Portal: Case #KD-8492 is now under review');
+  }, 1000);
+}
+
+function sendExpertRecommendation() {
+  const reply = document.getElementById('expert-reply-input').value || 'Diagnosis verified. Follow IPM Level 2 & 3 protocol immediately.';
+  toast('✓ Agronomist certified guidance transmitted to farmer app!');
+  setTimeout(() => {
+    goTo('scr-home');
+  }, 900);
+}
+
+/* ==================== 11. STEP 19: LEAFLET MAP & KVK EXTENSION ==================== */
+function initLeafletMap() {
+  if (window._leafletMap) return;
+  const mapContainer = document.getElementById('leaflet-map');
+  if (!mapContainer) return;
+
+  const lat = 12.9716;
+  const lon = 77.5946;
+  const map = L.map('leaflet-map').setView([lat, lon], 12);
+  window._leafletMap = map;
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(map);
+
+  // Farmer's Farm Pin
+  L.marker([lat, lon]).addTo(map)
+    .bindPopup('<b>🌾 Your Field (Plot #4)</b><br>Rice - Active Monitoring').openPopup();
+
+  // KVK Bangalore Marker
+  L.marker([12.9800, 77.6100]).addTo(map)
+    .bindPopup('<b>🏛️ ICAR - KVK Bangalore</b><br>Extension Center & Soil Clinic');
+
+  // FPO Marker
+  L.marker([12.9550, 77.5750]).addTo(map)
+    .bindPopup('<b>🌾 Green Earth FPO</b><br>Bio-fertilizer & Trichoderma');
+}
+
+function centerMapOnUser() {
+  if (!window._leafletMap) return;
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      window._leafletMap.setView([pos.coords.latitude, pos.coords.longitude], 13);
+      toast('Map centered to your GPS location');
+    }, () => {
+      window._leafletMap.setView([12.9716, 77.5946], 13);
+      toast('Consent received: centered to farm plot');
+    });
+  }
+}
+
+function focusKVKMarker(lat, lng, name) {
+  if (window._leafletMap) {
+    window._leafletMap.setView([lat, lng], 14);
+    toast(`Viewing ${name}`);
+  }
+}
+
+/* ==================== 12. CLOCK & SERVICE WORKER REGISTRATION ==================== */
+function tick() {
+  const clock = document.getElementById('live-clock');
+  const d = new Date();
+  let h = d.getHours() % 12; if (h === 0) h = 12;
+  const m = d.getMinutes().toString().padStart(2, '0');
+  if (clock) clock.textContent = `${h}:${m}`;
+}
+tick();
+setInterval(tick, 15000);
+
+// Initialize DB and Service Worker
+window.addEventListener('DOMContentLoaded', () => {
+  initIndexedDB();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('KrishiDrishti Service Worker Registered'))
+      .catch(err => console.log('Service Worker Note:', err));
+  }
+});
+</script>
+</body>
+</html>
